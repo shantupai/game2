@@ -2,158 +2,208 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>הנוטאים - אתגר ה-12 שניות</title>
+    <title>אוזן המן החכמה - חידון פורים</title>
     <style>
-        body { margin: 0; background: #020617; overflow: hidden; font-family: sans-serif; }
-        canvas { display: block; margin: 0 auto; background: #020617; }
-        #stats { position: absolute; top: 10px; width: 100%; display: flex; justify-content: space-around; color: white; font-size: 20px; font-weight: bold; pointer-events: none; text-shadow: 2px 2px 4px #000; }
-        #timer-bar { position: absolute; top: 50px; left: 50%; transform: translateX(-50%); width: 200px; height: 10px; background: #334155; border: 2px solid white; }
-        #timer-fill { width: 100%; height: 100%; background: #ef4444; transition: width 0.1s linear; }
-        .hint { position: absolute; bottom: 10px; width: 100%; text-align: center; color: #94a3b8; font-size: 16px; }
+        body {
+            margin: 0;
+            background: radial-gradient(circle, #4c1d95, #1e1b4b);
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* עיצוב אוזן המן ב-CSS */
+        .hamantash {
+            width: 0;
+            height: 0;
+            border-left: 100px solid transparent;
+            border-right: 100px solid transparent;
+            border-bottom: 170px solid #d97706; /* צבע בצק */
+            position: relative;
+            cursor: pointer;
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            filter: drop-shadow(0 10px 20px rgba(0,0,0,0.5));
+        }
+
+        .hamantash:hover { transform: scale(1.1) rotate(5deg); }
+
+        /* המילוי */
+        .filling {
+            position: absolute;
+            top: 70px;
+            left: -30px;
+            width: 60px;
+            height: 60px;
+            background: #451a03; /* שוקולד/פרג */
+            border-radius: 50%;
+        }
+
+        /* העיניים של הדמות */
+        .eye {
+            position: absolute;
+            width: 15px;
+            height: 15px;
+            background: white;
+            border-radius: 50%;
+            top: 100px;
+        }
+        .eye.left { left: -40px; }
+        .eye.right { left: 25px; }
+        .eye::after {
+            content: '';
+            position: absolute;
+            width: 7px;
+            height: 7px;
+            background: black;
+            border-radius: 50%;
+            top: 4px;
+            left: 4px;
+        }
+
+        #ui-box {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 30px;
+            border-radius: 20px;
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+            margin-top: 40px;
+            border: 2px solid #f59e0b;
+        }
+
+        input {
+            padding: 12px;
+            font-size: 18px;
+            border-radius: 10px;
+            border: none;
+            width: 80%;
+            margin: 15px 0;
+            text-align: center;
+        }
+
+        button {
+            padding: 12px 25px;
+            font-size: 18px;
+            background: #f59e0b;
+            color: #451a03;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.2s;
+        }
+
+        button:hover { background: #fbce77; }
+
+        #costume-result {
+            margin-top: 20px;
+            font-weight: bold;
+            color: #34d399;
+            font-size: 22px;
+            min-height: 50px;
+        }
+
+        .confetti { position: absolute; width: 10px; height: 10px; z-index: -1; }
     </style>
 </head>
 <body>
-    <div id="stats">
-        <div>🚀 שלב: <span id="lvl">1</span></div>
-        <div>❤️ חיים: <span id="hp">3</span></div>
-        <div>✨ כוכבים: <span id="sc">0</span></div>
+
+    <div class="hamantash" id="hero">
+        <div class="filling"></div>
+        <div class="eye left"></div>
+        <div class="eye right"></div>
     </div>
-    <div id="timer-bar"><div id="timer-fill"></div></div>
-    <div class="hint">חצים לזוז | רווח לקפוץ | **אסוף כוכב כל 12 שניות או שתקבל תרגיל!**</div>
-    <canvas id="game"></canvas>
+
+    <div id="ui-box">
+        <h2 id="question-text">טוען שאלה...</h2>
+        <input type="text" id="answer-input" placeholder="הקלד תשובה כאן..." autocomplete="off">
+        <br>
+        <button onclick="checkAnswer()">בדוק תשובה!</button>
+        <div id="costume-result"></div>
+    </div>
 
 <script>
-    const canvas = document.getElementById('game');
-    const ctx = canvas.getContext('2d');
-    canvas.width = 1100; canvas.height = 550;
+    const questions = [
+        { q: "מי הייתה המלכה לפני אסתר?", a: "ושתי" },
+        { q: "באיזו עיר התרחשה עלילת המגילה?", a: "שושן" },
+        { q: "איך קוראים למתנות שנותנים לחברים בפורים?", a: "משלוח מנות" },
+        { q: "מי היה הדוד (או בן דוד) של אסתר?", a: "מרדכי" },
+        { q: "מה היה שמו של המלך בסיפור הפסטורלי הזה?", a: "אחשורוש" },
+        { q: "כמה בנים היו להמן הרשע?", a: "10" },
+        { q: "באיזה חודש חוגגים את פורים?", a: "אדר" }
+    ];
 
-    let level = 1, score = 0, health = 3, frames = 0;
-    let lastStarTime = 0; // טיימר לאיסוף כוכב
-    const TIME_LIMIT = 12 * 60; // 12 שניות בפריימים (60FPS)
+    const costumes = [
+        "**אסטרונאוט עם חישוק:** (שבתאי)",
+        "**אנשי קשר:** (להדביק אנשי צעצוע על הבגד)",
+        "**ענן גשם:** (מטרייה עם צמר גפן כחול)",
+        "**פופקורן אנושי:** (להדביק פופקורן על חולצה לבנה)",
+        "**תחפושת 'טעות 404':** (חולצה לבנה שכתוב עליה 'התחפושת לא נמצאה')",
+        "**קקטוס:** (סוודר ירוק עם אזיקונים לבנים בולטים)",
+        "**סושי אנושי:** (כרית לבנה על הגב עם בד כתום)"
+    ];
 
-    let player = { x: 50, y: 400, w: 25, h: 25, xv: 0, yv: 0, jumps: 0, invul: 0 };
-    let platforms = [], aliens = [], stars = [], particles = [], door = {};
-    let keys = {};
+    let currentQ = 0;
 
-    function getMathProblem() {
-        const types = ['+', '-', '*'];
-        const type = types[Math.floor(Math.random() * types.length)];
-        let n1, n2, ans;
-        if (type === '+') { n1 = Math.floor(Math.random()*30)+1; n2 = Math.floor(Math.random()*30)+1; ans = n1+n2; }
-        else if (type === '-') { n1 = Math.floor(Math.random()*40)+10; n2 = Math.floor(Math.random()*n1); ans = n1-n2; }
-        else { n1 = Math.floor(Math.random()*10)+1; n2 = Math.floor(Math.random()*10)+1; ans = n1*n2; }
-        return { q: `${n1} ${type === '*' ? 'x' : type} ${n2}`, a: ans };
+    function loadQuestion() {
+        if (currentQ >= questions.length) {
+            document.getElementById('question-text').innerText = "סיימת את כל השאלות! חג שמח!";
+            document.getElementById('answer-input').style.display = 'none';
+            return;
+        }
+        document.getElementById('question-text').innerText = questions[currentQ].q;
+        document.getElementById('answer-input').value = "";
+        document.getElementById('costume-result').innerText = "";
     }
 
-    function triggerMathEvent(isFromStar = false) {
-        const prob = getMathProblem();
-        const msg = isFromStar ? "בונוס כוכב! פתור כדי להשמיד חייזר:" : "חלפו 12 שניות! פתור כדי להמשיך:";
-        const userA = prompt(`${msg}\n${prob.q} = ?`);
-        
-        if (parseInt(userA) === prob.a) {
-            alert("יפה מאוד!");
-            if (isFromStar) {
-                score += 100;
-                for(let a of aliens) { if(a.alive) { a.alive = false; break; } }
-            }
-            lastStarTime = 0; // איפוס הטיימר
-            return true;
+    function checkAnswer() {
+        const userAns = document.getElementById('answer-input').value.trim();
+        const correctAns = questions[currentQ].a;
+
+        if (userAns === correctAns) {
+            const randomCostume = costumes[Math.floor(Math.random() * costumes.length)];
+            document.getElementById('costume-result').innerHTML = "נכון! רעיון לתחפושת: <br>" + randomCostume;
+            createConfetti();
+            currentQ++;
+            setTimeout(loadQuestion, 4000); // עובר שאלה אחרי 4 שניות
         } else {
-            alert(`טעות! התשובה היא ${prob.a}. נסה להזדרז!`);
-            if (!isFromStar) health--; // עונש על טעות בטיימר
-            lastStarTime = 0;
-            return false;
+            document.getElementById('costume-result').innerText = "אופס, לא בדיוק. נסה שוב!";
+            document.getElementById('costume-result').style.color = "#f87171";
+            setTimeout(() => document.getElementById('costume-result').style.color = "#34d399", 1000);
         }
     }
 
-    function setupLevel() {
-        platforms = []; aliens = []; stars = []; particles = [];
-        player.x = 50; player.y = 450; player.xv = 0; player.yv = 0;
-        lastStarTime = 0;
-        platforms.push({ x: 0, y: 520, w: 1100, h: 30 });
-        for(let i=0; i<25; i++) {
-            platforms.push({ x: 100+Math.random()*900, y: 100+Math.random()*350, w: 70+Math.random()*50, h: 12 });
+    function createConfetti() {
+        for (let i = 0; i < 50; i++) {
+            const c = document.createElement('div');
+            c.className = 'confetti';
+            c.style.left = Math.random() * 100 + "vw";
+            c.style.top = "-10px";
+            c.style.backgroundColor = `hsl(${Math.random() * 360}, 70%, 60%)`;
+            document.body.appendChild(c);
+
+            const animation = c.animate([
+                { transform: 'translateY(0) rotate(0)', opacity: 1 },
+                { transform: `translateY(100vh) rotate(${Math.random() * 360}deg)`, opacity: 0 }
+            ], { duration: 2000 + Math.random() * 3000 });
+
+            animation.onfinish = () => c.remove();
         }
-        for(let i=0; i < 8 + level; i++) {
-            aliens.push({ x: 200+Math.random()*850, y: 50+Math.random()*400, baseY: 0, floatSpeed: 0.03, floatDist: 30, alive: true });
-            aliens[i].baseY = aliens[i].y;
-        }
-        for(let i=0; i<6; i++) {
-            stars.push({ x: 150+Math.random()*850, y: 50+Math.random()*400, collected: false });
-        }
-        let highP = platforms[Math.floor(Math.random()*platforms.length)];
-        door = { x: highP.x, y: highP.y-60, w: 40, h: 60 };
-        document.getElementById('lvl').innerText = level;
     }
 
-    window.onkeydown = e => keys[e.code] = true;
-    window.onkeyup = e => keys[e.code] = false;
+    // הפעלת שאלה ראשונה
+    loadQuestion();
 
-    function update() {
-        frames++;
-        lastStarTime++; // קידום טיימר 12 השניות
-
-        // בדיקת טיימר 12 שניות
-        if (lastStarTime >= TIME_LIMIT) {
-            triggerMathEvent(false);
-        }
-
-        // עדכון פס זמן ב-UI
-        const timeLeftPercent = Math.max(0, ((TIME_LIMIT - lastStarTime) / TIME_LIMIT) * 100);
-        document.getElementById('timer-fill').style.width = timeLeftPercent + "%";
-
-        if(player.invul > 0) player.invul--;
-        player.xv = keys.ArrowRight ? 6 : (keys.ArrowLeft ? -6 : 0);
-        if((keys.Space || keys.ArrowUp) && player.jumps < 2 && !player.jumpLock) {
-            player.yv = -11; player.jumps++; player.jumpLock = true;
-        }
-        if(!keys.Space && !keys.ArrowUp) player.jumpLock = false;
-
-        player.yv += 0.55; player.x += player.xv; player.y += player.yv;
-
-        platforms.forEach(p => {
-            if(player.x < p.x+p.w && player.x+player.w > p.x && player.y+player.h > p.y && player.y+player.h < p.y+p.h+10 && player.yv >= 0) {
-                player.y = p.y - player.h; player.yv = 0; player.jumps = 0;
-            }
-        });
-
-        stars.forEach(s => {
-            if(!s.collected && Math.abs(player.x - s.x) < 30 && Math.abs(player.y - s.y) < 30) {
-                if(triggerMathEvent(true)) s.collected = true;
-                player.x -= 30; // מניעת התקעות
-            }
-        });
-
-        aliens.forEach(a => {
-            if(!a.alive) return;
-            a.y = a.baseY + Math.sin(frames * 0.05) * 30;
-            if(player.invul <= 0 && Math.abs(player.x - a.x) < 25 && Math.abs(player.y - a.y) < 25) {
-                health--; player.invul = 80;
-                if(health <= 0) { alert("הפסדת!"); level=1; health=3; setupLevel(); }
-            }
-        });
-
-        if(Math.abs(player.x - door.x) < 40 && Math.abs(player.y - door.y) < 50) { level++; setupLevel(); }
-        if(player.y > 600) { health--; setupLevel(); }
-        
-        document.getElementById('sc').innerText = score;
-        document.getElementById('hp').innerText = health;
-    }
-
-    function draw() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = "#334155";
-        platforms.forEach(p => { ctx.fillRect(p.x, p.y, p.w, p.h); ctx.fillStyle = "#4ade80"; ctx.fillRect(p.x, p.y, p.w, 3); ctx.fillStyle = "#334155"; });
-        stars.forEach(s => { if(!s.collected) { ctx.fillStyle = "#fbbf24"; ctx.beginPath(); ctx.arc(s.x, s.y, 10, 0, Math.PI*2); ctx.fill(); } });
-        ctx.fillStyle = "#8b5cf6"; ctx.fillRect(door.x, door.y, door.w, door.h);
-        ctx.fillStyle = (player.invul > 0 && frames % 10 < 5) ? "#94a3b8" : "#38bdf8";
-        ctx.fillRect(player.x, player.y, player.w, player.h);
-        aliens.forEach(a => { if(!a.alive) return; ctx.fillStyle = "#f43f5e"; ctx.beginPath(); ctx.arc(a.x+15, a.y+15, 12, 0, Math.PI*2); ctx.fill(); });
-    }
-
-    function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
-    setupLevel();
-    gameLoop();
+    // תמיכה במקש Enter
+    document.getElementById('answer-input').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') checkAnswer();
+    });
 </script>
 </body>
 </html>
