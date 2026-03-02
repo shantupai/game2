@@ -2,32 +2,30 @@
 <html lang="he">
 <head>
     <meta charset="UTF-8">
-    <title>ארנב החידות והחבר המעודד</title>
+    <title>דובי העצים והחידות</title>
     <style>
-        body { margin: 0; background: #0f172a; color: white; font-family: 'Segoe UI', Arial, sans-serif; overflow: hidden; text-align: center; }
-        canvas { background: #1e293b; display: block; margin: 20px auto; border: 5px solid #334155; border-radius: 10px; box-shadow: 0 0 40px rgba(0,0,0,0.6); }
-        #ui { font-size: 26px; font-weight: bold; margin-top: 15px; display: flex; justify-content: center; gap: 30px; }
+        body { margin: 0; background: #064e3b; color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; text-align: center; }
+        canvas { background: #14532d; display: block; margin: 20px auto; border: 6px solid #065f46; border-radius: 15px; box-shadow: 0 0 50px rgba(0,0,0,0.5); }
+        #ui { font-size: 26px; font-weight: bold; margin-top: 15px; display: flex; justify-content: center; gap: 40px; }
         #riddle-box {
             display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: white; color: #1e293b; padding: 30px; border-radius: 20px;
-            box-shadow: 0 0 100px rgba(0,0,0,0.8); z-index: 100; width: 350px; border: 5px solid #10b981;
+            background: #fef3c7; color: #78350f; padding: 30px; border-radius: 20px;
+            box-shadow: 0 0 100px rgba(0,0,0,0.9); z-index: 100; width: 360px; border: 6px solid #d97706;
         }
-        button { width: 100%; padding: 12px; margin: 8px 0; cursor: pointer; font-weight: bold; background: #10b981; color: white; border: none; border-radius: 8px; font-size: 16px; transition: 0.2s; }
-        button:hover { background: #059669; transform: scale(1.02); }
-        .info { color: #94a3b8; margin-top: 5px; }
+        button { width: 100%; padding: 12px; margin: 10px 0; cursor: pointer; font-weight: bold; background: #d97706; color: white; border: none; border-radius: 10px; font-size: 18px; }
+        button:hover { background: #b45309; }
     </style>
 </head>
 <body>
 
 <div id="ui">
-    <div style="color: #60a5fa;">🏁 שלב: <span id="lvl">1</span>/5</div>
-    <div style="color: #fbbf24;">🥕 גזרים: <span id="gz">0</span>/3</div>
-    <div style="color: #34d399;">✨ ניקוד: <span id="sc">0</span></div>
+    <div style="color: #fbbf24;">🌳 שלב: <span id="lvl">1</span>/5</div>
+    <div style="color: #fcd34d;">🪵 עצים: <span id="gz">0</span>/3</div>
+    <div style="color: #6ee7b7;">✨ ניקוד: <span id="sc">0</span></div>
 </div>
-<div class="info">חצים: תנועה וטיפוס | רווח: קפיצה וקפיצת קיר | פתור 3 חידות כדי לפתוח את הפח!</div>
 
 <div id="riddle-box">
-    <h2 id="q" style="margin-top:0">חידה!</h2>
+    <h2 id="q" style="margin-top:0">חידת היער!</h2>
     <div id="ans"></div>
 </div>
 
@@ -38,13 +36,12 @@
     const ctx = canvas.getContext('2d');
     canvas.width = 900; canvas.height = 550;
 
-    let level = 1, score = 0, carrotsCollected = 0, isPaused = false;
-    let player = { x: 50, y: 400, w: 30, h: 40, vx: 0, vy: 0, onWall: false, wallDir: 0, faceDir: 1 };
+    let level = 1, score = 0, woodCollected = 0, isPaused = false;
+    let player = { x: 50, y: 450, w: 40, h: 40, vx: 0, vy: 0, onWall: false, wallDir: 0, faceDir: 1 };
     let npc = { x: 120, y: 460, msg: "" };
-    let platforms = [], carrots = [];
+    let platforms = [], logs = [];
     const keys = {};
 
-    // בנק חידות לכל שלב (3 חידות לכל שלב)
     const riddlesByLevel = {
         1: [
             {q: "מה יש לו שיניים אבל לא נושך?", a: ["מסרק", "מפתח", "מסור"], c: 0},
@@ -73,36 +70,33 @@
         ]
     };
 
-    const npcMessages = ["אתה אלוף!", "איזה טיפוס מרשים!", "קדימה לגזרים!", "הפח מחכה לך!", "כמעט שם!"];
+    const npcMessages = ["קדימה דובי, אתה יכול!", "אל תפחד מהגובה!", "עוד קצת והפח נפתח!", "איזה דובי חכם!", "שלב אחרון, אלוף!"];
 
     function initLevel(num) {
-        carrotsCollected = 0;
-        player.x = 50; player.y = 450; player.vx = 0; player.vy = 0;
+        woodCollected = 0;
+        player.x = 50; player.y = 450; 
+        player.vx = 0; player.vy = 0; // איפוס מהירות כדי למנוע נפילה
         npc.msg = npcMessages[num-1];
         
-        // בניית שלב משתנה
         platforms = [
-            {x: 0, y: 520, w: 900, h: 30, wall: false}, // רצפה
-            {x: 350 + (num*20), y: 120, w: 40, h: 400, wall: true}, // קיר טיפוס משתנה
-            {x: 700 - (num*10), y: 50, w: 40, h: 350, wall: true}   // קיר טיפוס 2
+            {x: 0, y: 520, w: 900, h: 30, wall: false},
+            {x: 350, y: 120, w: 45, h: 400, wall: true},
+            {x: 700, y: 50, w: 45, h: 350, wall: true}
         ];
 
-        // מדרגות
-        platforms.push({x: 120, y: 380, w: 120, h: 15, wall: false});
-        platforms.push({x: 500, y: 220, w: 120, h: 15, wall: false});
+        for(let i=0; i<3; i++) platforms.push({x: 120 + i*220, y: 400 - i*100, w: 130, h: 15, wall: false});
 
-        // גזרים במיקומים שונים
-        carrots = [
-            {x: 150, y: 340, active: true},
-            {x: 380 + (num*20), y: 180, active: true},
-            {x: 730 - (num*10), y: 80, active: true}
+        logs = [
+            {x: 160, y: 350, active: true},
+            {x: 390, y: 180, active: true},
+            {x: 740, y: 80, active: true}
         ];
         updateUI();
     }
 
     function updateUI() {
         document.getElementById('lvl').innerText = level;
-        document.getElementById('gz').innerText = carrotsCollected;
+        document.getElementById('gz').innerText = woodCollected;
         document.getElementById('sc').innerText = score;
     }
 
@@ -111,9 +105,9 @@
 
     function showRiddle() {
         isPaused = true;
+        player.vx = 0; player.vy = 0; // עצירה מוחלטת של הדובי
         const currentRiddles = riddlesByLevel[level];
-        // בוחר חידה לפי מספר הגזרים שנאספו
-        const r = currentRiddles[carrotsCollected] || currentRiddles[0];
+        const r = currentRiddles[woodCollected] || currentRiddles[0];
         
         document.getElementById('riddle-box').style.display = 'block';
         document.getElementById('q').innerText = r.q;
@@ -124,7 +118,7 @@
             const btn = document.createElement('button');
             btn.innerText = text;
             btn.onclick = () => {
-                if(i === r.c) { score += 100; carrotsCollected++; }
+                if(i === r.c) { score += 100; woodCollected++; }
                 document.getElementById('riddle-box').style.display = 'none';
                 isPaused = false;
                 updateUI();
@@ -137,22 +131,22 @@
     function update() {
         if(isPaused) return;
 
-        if(keys['ArrowRight']) { player.vx = 6; player.faceDir = 1; }
-        else if(keys['ArrowLeft']) { player.vx = -6; player.faceDir = -1; }
+        if(keys['ArrowRight']) { player.vx = 5; player.faceDir = 1; }
+        else if(keys['ArrowLeft']) { player.vx = -5; player.faceDir = -1; }
         else { player.vx *= 0.8; }
 
         if(player.onWall) {
-            player.vy = keys['ArrowUp'] ? -5 : (keys['ArrowDown'] ? 5 : 0);
+            player.vy = keys['ArrowUp'] ? -4 : (keys['ArrowDown'] ? 4 : 0);
         } else {
-            player.vy += 0.8; // גרביטציה
+            player.vy += 0.7; 
         }
 
-        if((keys['Space'] || keys['ArrowUp']) && !player.onWall && player.vy === 0.8) {
-            player.vy = -14;
+        if((keys['Space'] || keys['ArrowUp']) && !player.onWall && Math.abs(player.vy) < 1) {
+            player.vy = -13;
         }
 
         if(keys['Space'] && player.onWall) {
-            player.vy = -11;
+            player.vy = -10;
             player.vx = -player.wallDir * 11;
             player.onWall = false;
         }
@@ -174,36 +168,42 @@
         });
         player.onWall = nowOnWall;
 
-        carrots.forEach(c => {
-            if(c.active && Math.abs(player.x - c.x) < 30 && Math.abs(player.y - c.y) < 30) {
-                c.active = false;
+        logs.forEach(l => {
+            if(l.active && Math.abs(player.x - l.x) < 40 && Math.abs(player.y - l.y) < 40) {
+                l.active = false;
                 showRiddle();
             }
         });
 
-        if(carrotsCollected >= 3 && player.x > 800) {
+        if(woodCollected >= 3 && player.x > 820) {
             if(level < 5) { level++; initLevel(level); }
-            else { alert("מלך הארנבים! ניצחת את כל החידות!"); level = 1; initLevel(1); }
+            else { alert("כל הכבוד דובי! סיימת את כל היער!"); level = 1; initLevel(1); }
         }
 
         if(player.y > 600) initLevel(level);
     }
 
-    function drawRabbit(x, y, color, direction, hasBubble, message) {
+    function drawBear(x, y, color, size, msg) {
         ctx.fillStyle = color;
-        ctx.fillRect(x, y, 30, 40); // גוף
-        ctx.fillRect(x + 5, y - 15, 8, 20); // אוזן
-        ctx.fillRect(x + 17, y - 15, 8, 20); // אוזן
+        // גוף
+        ctx.beginPath(); ctx.arc(x + size/2, y + size/2, size/2, 0, Math.PI*2); ctx.fill();
+        // אוזניים
+        ctx.beginPath(); ctx.arc(x + size/4, y + 5, size/5, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(x + size*0.75, y + 5, size/5, 0, Math.PI*2); ctx.fill();
+        // עיניים
         ctx.fillStyle = "black";
-        ctx.fillRect(direction === 1 ? x + 22 : x + 4, y + 10, 4, 4); // עין
-        
-        if(hasBubble) {
+        ctx.beginPath(); ctx.arc(x + size*0.3, y + size*0.4, 3, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(x + size*0.7, y + size*0.4, 3, 0, Math.PI*2); ctx.fill();
+        // אף
+        ctx.beginPath(); ctx.arc(x + size/2, y + size*0.6, 4, 0, Math.PI*2); ctx.fill();
+
+        if(msg) {
             ctx.fillStyle = "white";
-            ctx.fillRect(x - 20, y - 60, 100, 30);
+            ctx.fillRect(x - 20, y - 60, 120, 30);
             ctx.fillStyle = "black";
             ctx.font = "bold 14px Arial";
             ctx.textAlign = "center";
-            ctx.fillText(message, x + 30, y - 40);
+            ctx.fillText(msg, x + 40, y - 40);
         }
     }
 
@@ -212,33 +212,30 @@
 
         // פלטפורמות
         platforms.forEach(p => {
-            ctx.fillStyle = p.wall ? "#64748b" : "#334155";
+            ctx.fillStyle = p.wall ? "#3f2b1d" : "#064e3b";
             ctx.fillRect(p.x, p.y, p.w, p.h);
         });
 
-        // גזרים
-        carrots.forEach(c => {
-            if(c.active) {
-                ctx.fillStyle = "#f97316"; ctx.fillRect(c.x, c.y, 15, 20);
-                ctx.fillStyle = "#22c55e"; ctx.fillRect(c.x + 2, c.y - 5, 11, 5);
+        // בולי עץ
+        logs.forEach(l => {
+            if(l.active) {
+                ctx.fillStyle = "#78350f";
+                ctx.fillRect(l.x, l.y, 30, 15);
+                ctx.strokeStyle = "#451a03";
+                ctx.strokeRect(l.x, l.y, 30, 15);
             }
         });
 
         // פח אשפה
-        ctx.fillStyle = (carrotsCollected >= 3) ? "#10b981" : "#4b5563";
+        ctx.fillStyle = (woodCollected >= 3) ? "#10b981" : "#4b5563";
         ctx.fillRect(840, 450, 45, 70);
         ctx.fillStyle = "#9ca3af"; ctx.fillRect(835, 445, 55, 8);
-        if(carrotsCollected >= 3) {
-            ctx.shadowBlur = 15; ctx.shadowColor = "#10b981";
-            ctx.strokeStyle = "white"; ctx.strokeRect(840, 450, 45, 70);
-            ctx.shadowBlur = 0;
-        }
 
-        // הארנב המעודד (NPC)
-        drawRabbit(npc.x, npc.y, "#f472b6", 1, true, npc.msg);
+        // הדובי הקטן (מעודד)
+        drawBear(npc.x, npc.y, "#f472b6", 30, npc.msg);
 
-        // הארנב הראשי
-        drawRabbit(player.x, player.y, "white", player.faceDir, false, "");
+        // הדובי הראשי (שחקן)
+        drawBear(player.x, player.y, "#92400e", 40, "");
     }
 
     function gameLoop() {
