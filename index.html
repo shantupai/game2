@@ -2,27 +2,32 @@
 <html lang="he">
 <head>
     <meta charset="UTF-8">
-    <title>ארנב החידות - 5 שלבים</title>
+    <title>ארנב החידות והחבר המעודד</title>
     <style>
-        body { margin: 0; background: #1a1a1a; color: white; font-family: Arial, sans-serif; overflow: hidden; text-align: center; }
-        canvas { background: #2c3e50; display: block; margin: 20px auto; border: 5px solid #34495e; touch-action: none; }
-        #ui { font-size: 24px; margin-top: 10px; }
+        body { margin: 0; background: #0f172a; color: white; font-family: 'Segoe UI', Arial, sans-serif; overflow: hidden; text-align: center; }
+        canvas { background: #1e293b; display: block; margin: 20px auto; border: 5px solid #334155; border-radius: 10px; box-shadow: 0 0 40px rgba(0,0,0,0.6); }
+        #ui { font-size: 26px; font-weight: bold; margin-top: 15px; display: flex; justify-content: center; gap: 30px; }
         #riddle-box {
             display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: #ecf0f1; color: #2c3e50; padding: 25px; border-radius: 15px;
-            box-shadow: 0 0 50px rgba(0,0,0,0.5); z-index: 100; width: 300px; border: 4px solid #3498db;
+            background: white; color: #1e293b; padding: 30px; border-radius: 20px;
+            box-shadow: 0 0 100px rgba(0,0,0,0.8); z-index: 100; width: 350px; border: 5px solid #10b981;
         }
-        button { width: 100%; padding: 10px; margin: 5px 0; cursor: pointer; font-weight: bold; background: #3498db; color: white; border: none; border-radius: 5px; }
-        .info { color: #bdc3c7; font-size: 14px; }
+        button { width: 100%; padding: 12px; margin: 8px 0; cursor: pointer; font-weight: bold; background: #10b981; color: white; border: none; border-radius: 8px; font-size: 16px; transition: 0.2s; }
+        button:hover { background: #059669; transform: scale(1.02); }
+        .info { color: #94a3b8; margin-top: 5px; }
     </style>
 </head>
 <body>
 
-<div id="ui">שלב: <span id="lvl">1</span>/5 | גזרים: <span id="gz">0</span>/3 | ניקוד: <span id="sc">0</span></div>
-<div class="info">חצים: תנועה וטיפוס | רווח: קפיצה / קפיצת קיר</div>
+<div id="ui">
+    <div style="color: #60a5fa;">🏁 שלב: <span id="lvl">1</span>/5</div>
+    <div style="color: #fbbf24;">🥕 גזרים: <span id="gz">0</span>/3</div>
+    <div style="color: #34d399;">✨ ניקוד: <span id="sc">0</span></div>
+</div>
+<div class="info">חצים: תנועה וטיפוס | רווח: קפיצה וקפיצת קיר | פתור 3 חידות כדי לפתוח את הפח!</div>
 
 <div id="riddle-box">
-    <h3 id="q">חידה...</h3>
+    <h2 id="q" style="margin-top:0">חידה!</h2>
     <div id="ans"></div>
 </div>
 
@@ -31,41 +36,66 @@
 <script>
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
-    canvas.width = 800; canvas.height = 500;
+    canvas.width = 900; canvas.height = 550;
 
-    // הגדרות משחק
     let level = 1, score = 0, carrotsCollected = 0, isPaused = false;
     let player = { x: 50, y: 400, w: 30, h: 40, vx: 0, vy: 0, onWall: false, wallDir: 0, faceDir: 1 };
+    let npc = { x: 120, y: 460, msg: "" };
     let platforms = [], carrots = [];
     const keys = {};
 
-    const riddleList = [
-        {q: "מה יש לו רגליים אבל לא הולך?", a: ["שולחן", "כלב", "מכונית"], c: 0},
-        {q: "מה עולה ולא יורד לעולם?", a: ["בלון", "הגיל שלך", "גשם"], c: 1},
-        {q: "מה נרטב כשמייבשים אותו?", a: ["מגבת", "ספוג", "ים"], c: 0},
-        {q: "איזה חודש יש בו 28 ימים?", a: ["פברואר", "מרץ", "כולם"], c: 2}
-    ];
+    // בנק חידות לכל שלב (3 חידות לכל שלב)
+    const riddlesByLevel = {
+        1: [
+            {q: "מה יש לו שיניים אבל לא נושך?", a: ["מסרק", "מפתח", "מסור"], c: 0},
+            {q: "מה שייך לך אבל אחרים משתמשים בו יותר?", a: ["השם שלך", "הטלפון", "הכסף"], c: 0},
+            {q: "מה תמיד בא אבל אף פעם לא מגיע?", a: ["האוטובוס", "מחר", "החופש"], c: 1}
+        ],
+        2: [
+            {q: "מה נרטב כשמייבשים אותו?", a: ["ספוג", "מגבת", "ים"], c: 1},
+            {q: "למי יש רגליים אבל הוא לא יכול ללכת?", a: ["שולחן", "נחש", "כיסא"], c: 0},
+            {q: "מה עולה ולא יורד לעולם?", a: ["בלון", "הגיל שלך", "מטוס"], c: 1}
+        ],
+        3: [
+            {q: "מה מלא חורים אבל עדיין מחזיק מים?", a: ["מסננת", "ספוג", "דלי"], c: 1},
+            {q: "מה נשבר כשמדברים עליו?", a: ["זכוכית", "הבטחה", "שתיקה"], c: 2},
+            {q: "מה תמיד לפניך אבל אתה לא רואה?", a: ["העתיד", "הגב", "האף"], c: 0}
+        ],
+        4: [
+            {q: "מה מתחיל ב-ת', נגמר ב-ת' ויש בו ת'?", a: ["תות", "תיבת דואר", "תחנה"], c: 1},
+            {q: "מה רץ אבל אין לו רגליים?", a: ["זמן", "נהר", "שניהם"], c: 2},
+            {q: "מה יש לו ראש וזנב אבל אין לו גוף?", a: ["נחש", "מטבע", "לטאה"], c: 1}
+        ],
+        5: [
+            {q: "מה נהיה גבוה יותר ככל שמוציאים ממנו יותר?", a: ["בור", "בניין", "עץ"], c: 0},
+            {q: "מה יש לו יד אבל לא יכול למחוא כפיים?", a: ["שעון", "בובה", "כפפה"], c: 0},
+            {q: "מי אני? אם תאכל אותי אני אחיה, אם תשקה אותי אני אמות.", a: ["צמח", "אש", "רעב"], c: 1}
+        ]
+    };
+
+    const npcMessages = ["אתה אלוף!", "איזה טיפוס מרשים!", "קדימה לגזרים!", "הפח מחכה לך!", "כמעט שם!"];
 
     function initLevel(num) {
         carrotsCollected = 0;
-        player.x = 50; player.y = 400; player.vx = 0; player.vy = 0;
+        player.x = 50; player.y = 450; player.vx = 0; player.vy = 0;
+        npc.msg = npcMessages[num-1];
         
-        // בניית שלב
+        // בניית שלב משתנה
         platforms = [
-            {x: 0, y: 470, w: 800, h: 30, wall: false}, // רצפה
-            {x: 350, y: 100, w: 40, h: 370, wall: true}, // קיר טיפוס
-            {x: 600, y: 50, w: 40, h: 350, wall: true}   // קיר טיפוס 2
+            {x: 0, y: 520, w: 900, h: 30, wall: false}, // רצפה
+            {x: 350 + (num*20), y: 120, w: 40, h: 400, wall: true}, // קיר טיפוס משתנה
+            {x: 700 - (num*10), y: 50, w: 40, h: 350, wall: true}   // קיר טיפוס 2
         ];
 
         // מדרגות
-        platforms.push({x: 150, y: 350, w: 100, h: 15, wall: false});
-        platforms.push({x: 500, y: 200, w: 100, h: 15, wall: false});
+        platforms.push({x: 120, y: 380, w: 120, h: 15, wall: false});
+        platforms.push({x: 500, y: 220, w: 120, h: 15, wall: false});
 
-        // 3 גזרים
+        // גזרים במיקומים שונים
         carrots = [
-            {x: 180, y: 310, active: true},
-            {x: 380, y: 150, active: true},
-            {x: 630, y: 80, active: true}
+            {x: 150, y: 340, active: true},
+            {x: 380 + (num*20), y: 180, active: true},
+            {x: 730 - (num*10), y: 80, active: true}
         ];
         updateUI();
     }
@@ -81,7 +111,10 @@
 
     function showRiddle() {
         isPaused = true;
-        const r = riddleList[Math.floor(Math.random() * riddleList.length)];
+        const currentRiddles = riddlesByLevel[level];
+        // בוחר חידה לפי מספר הגזרים שנאספו
+        const r = currentRiddles[carrotsCollected] || currentRiddles[0];
+        
         document.getElementById('riddle-box').style.display = 'block';
         document.getElementById('q').innerText = r.q;
         const ansDiv = document.getElementById('ans');
@@ -91,7 +124,7 @@
             const btn = document.createElement('button');
             btn.innerText = text;
             btn.onclick = () => {
-                if(i === r.c) { score += 50; carrotsCollected++; }
+                if(i === r.c) { score += 100; carrotsCollected++; }
                 document.getElementById('riddle-box').style.display = 'none';
                 isPaused = false;
                 updateUI();
@@ -104,39 +137,35 @@
     function update() {
         if(isPaused) return;
 
-        // תנועה אופקית
-        if(keys['ArrowRight']) { player.vx = 5; player.faceDir = 1; }
-        else if(keys['ArrowLeft']) { player.vx = -5; player.faceDir = -1; }
+        if(keys['ArrowRight']) { player.vx = 6; player.faceDir = 1; }
+        else if(keys['ArrowLeft']) { player.vx = -6; player.faceDir = -1; }
         else { player.vx *= 0.8; }
 
-        // טיפוס או כוח משיכה
         if(player.onWall) {
-            player.vy = keys['ArrowUp'] ? -4 : (keys['ArrowDown'] ? 4 : 0);
+            player.vy = keys['ArrowUp'] ? -5 : (keys['ArrowDown'] ? 5 : 0);
         } else {
             player.vy += 0.8; // גרביטציה
         }
 
         if((keys['Space'] || keys['ArrowUp']) && !player.onWall && player.vy === 0.8) {
-            player.vy = -13;
+            player.vy = -14;
         }
 
-        // קפיצת קיר
         if(keys['Space'] && player.onWall) {
-            player.vy = -10;
-            player.vx = -player.wallDir * 10;
+            player.vy = -11;
+            player.vx = -player.wallDir * 11;
             player.onWall = false;
         }
 
         player.x += player.vx;
         player.y += player.vy;
 
-        // בדיקת התנגשות
         let nowOnWall = false;
         platforms.forEach(p => {
             if(player.x < p.x + p.w && player.x + player.w > p.x && player.y < p.y + p.h && player.y + player.h > p.y) {
-                if(!p.wall) { // רצפה
-                    if(player.vy > 0) { player.y = p.y - player.h; player.vy = 0; }
-                } else { // קיר
+                if(!p.wall) {
+                    if(player.vy > 0 && player.y + player.h - player.vy <= p.y) { player.y = p.y - player.h; player.vy = 0; }
+                } else {
                     nowOnWall = true;
                     player.wallDir = (player.x < p.x) ? 1 : -1;
                     player.vx = 0;
@@ -145,7 +174,6 @@
         });
         player.onWall = nowOnWall;
 
-        // גזרים
         carrots.forEach(c => {
             if(c.active && Math.abs(player.x - c.x) < 30 && Math.abs(player.y - c.y) < 30) {
                 c.active = false;
@@ -153,13 +181,30 @@
             }
         });
 
-        // פח אשפה (סוף שלב)
-        if(carrotsCollected >= 3 && player.x > 720) {
+        if(carrotsCollected >= 3 && player.x > 800) {
             if(level < 5) { level++; initLevel(level); }
-            else { alert("כל הכבוד! סיימת את המשחק!"); level = 1; initLevel(1); }
+            else { alert("מלך הארנבים! ניצחת את כל החידות!"); level = 1; initLevel(1); }
         }
 
-        if(player.y > 550) initLevel(level); // נפילה
+        if(player.y > 600) initLevel(level);
+    }
+
+    function drawRabbit(x, y, color, direction, hasBubble, message) {
+        ctx.fillStyle = color;
+        ctx.fillRect(x, y, 30, 40); // גוף
+        ctx.fillRect(x + 5, y - 15, 8, 20); // אוזן
+        ctx.fillRect(x + 17, y - 15, 8, 20); // אוזן
+        ctx.fillStyle = "black";
+        ctx.fillRect(direction === 1 ? x + 22 : x + 4, y + 10, 4, 4); // עין
+        
+        if(hasBubble) {
+            ctx.fillStyle = "white";
+            ctx.fillRect(x - 20, y - 60, 100, 30);
+            ctx.fillStyle = "black";
+            ctx.font = "bold 14px Arial";
+            ctx.textAlign = "center";
+            ctx.fillText(message, x + 30, y - 40);
+        }
     }
 
     function draw() {
@@ -167,30 +212,33 @@
 
         // פלטפורמות
         platforms.forEach(p => {
-            ctx.fillStyle = p.wall ? "#7f8c8d" : "#34495e";
+            ctx.fillStyle = p.wall ? "#64748b" : "#334155";
             ctx.fillRect(p.x, p.y, p.w, p.h);
         });
 
         // גזרים
         carrots.forEach(c => {
             if(c.active) {
-                ctx.fillStyle = "#e67e22"; ctx.fillRect(c.x, c.y, 15, 20);
-                ctx.fillStyle = "#27ae60"; ctx.fillRect(c.x + 2, c.y - 5, 10, 5);
+                ctx.fillStyle = "#f97316"; ctx.fillRect(c.x, c.y, 15, 20);
+                ctx.fillStyle = "#22c55e"; ctx.fillRect(c.x + 2, c.y - 5, 11, 5);
             }
         });
 
-        // פח אשפה (הדלת)
-        ctx.fillStyle = (carrotsCollected >= 3) ? "#2ecc71" : "#95a5a6";
-        ctx.fillRect(740, 400, 45, 70); // פח
-        ctx.fillStyle = "#7f8c8d"; ctx.fillRect(735, 395, 55, 8); // מכסה
+        // פח אשפה
+        ctx.fillStyle = (carrotsCollected >= 3) ? "#10b981" : "#4b5563";
+        ctx.fillRect(840, 450, 45, 70);
+        ctx.fillStyle = "#9ca3af"; ctx.fillRect(835, 445, 55, 8);
+        if(carrotsCollected >= 3) {
+            ctx.shadowBlur = 15; ctx.shadowColor = "#10b981";
+            ctx.strokeStyle = "white"; ctx.strokeRect(840, 450, 45, 70);
+            ctx.shadowBlur = 0;
+        }
 
-        // ארנב
-        ctx.fillStyle = "white";
-        ctx.fillRect(player.x, player.y, player.w, player.h); // גוף
-        ctx.fillRect(player.x + 5, player.y - 15, 8, 20); // אוזן
-        ctx.fillRect(player.x + 17, player.y - 15, 8, 20); // אוזן
-        ctx.fillStyle = "black";
-        ctx.fillRect(player.faceDir === 1 ? player.x + 22 : player.x + 4, player.y + 10, 4, 4); // עין
+        // הארנב המעודד (NPC)
+        drawRabbit(npc.x, npc.y, "#f472b6", 1, true, npc.msg);
+
+        // הארנב הראשי
+        drawRabbit(player.x, player.y, "white", player.faceDir, false, "");
     }
 
     function gameLoop() {
