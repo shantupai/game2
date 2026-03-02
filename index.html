@@ -2,45 +2,58 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>ארנב הלייזר: חמשת שלבי האשפה</title>
+    <title>ארנב הלייזר - חמשת השלבים</title>
     <style>
-        body { margin: 0; background: radial-gradient(circle, #1e293b, #020617); color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; height: 100vh; display: flex; align-items: center; justify-content: center; }
-        #game-wrap { position: relative; border: 4px solid #475569; box-shadow: 0 0 50px rgba(0,0,0,0.7); border-radius: 10px; overflow: hidden; }
-        canvas { background: #0f172a; display: block; }
-        #ui { position: absolute; top: 15px; width: 100%; display: flex; justify-content: space-around; font-size: 22px; font-weight: bold; pointer-events: none; text-shadow: 2px 2px 5px #000; z-index: 10; }
-        #riddle-container {
+        body { margin: 0; background: #0f172a; color: white; font-family: sans-serif; overflow: hidden; display: flex; align-items: center; justify-content: center; height: 100vh; }
+        canvas { background: #1e293b; border: 3px solid #334155; display: block; box-shadow: 0 0 30px rgba(0,0,0,0.5); }
+        #ui { position: absolute; top: 20px; width: 100%; display: flex; justify-content: space-around; font-size: 24px; pointer-events: none; z-index: 10; text-shadow: 2px 2px #000; }
+        #riddle-box {
             display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: rgba(255, 255, 255, 0.95); color: #1e293b; padding: 30px; border-radius: 15px; 
-            text-align: center; box-shadow: 0 0 100px rgba(0,0,0,0.9); z-index: 100; width: 350px; border: 5px solid #3b82f6;
+            background: #f8fafc; color: #1e293b; padding: 25px; border-radius: 15px; text-align: center;
+            box-shadow: 0 0 100px rgba(0,0,0,1); z-index: 100; width: 320px; border: 4px solid #3b82f6;
         }
-        #riddle-container button {
-            display: block; width: 100%; margin: 10px 0; padding: 12px; font-size: 16px; font-weight: bold;
-            cursor: pointer; background: #3b82f6; color: white; border: none; border-radius: 8px; transition: 0.2s;
+        #riddle-box button {
+            display: block; width: 100%; margin: 8px 0; padding: 12px; font-weight: bold;
+            cursor: pointer; background: #3b82f6; color: white; border: none; border-radius: 8px;
         }
-        #riddle-container button:hover { background: #1d4ed8; transform: scale(1.02); }
-        .hud-item { background: rgba(0,0,0,0.4); padding: 5px 15px; border-radius: 20px; border: 1px solid #475569; }
     </style>
 </head>
 <body>
 
-    <div id="ui">
-        <div class="hud-item">📍 שלב: <span id="lvl">1</span>/5</div>
-        <div class="hud-item" style="color: #fbbf24;">🥕 חידות: <span id="riddle-count">0/3</span></div>
-        <div class="hud-item">✨ ניקוד: <span id="sc">0</span></div>
-    </div>
-    
-    <div id="riddle-container">
-        <h2 id="riddle-question" style="margin-top:0;">❓ חידה למחשבה</h2>
-        <div id="riddle-answers"></div>
-    </div>
+<div id="ui">
+    <div>שלב: <span id="lvl">1</span>/5</div>
+    <div style="color: #fbbf24;">גזרים: <span id="gz">0</span>/3</div>
+    <div>נקודות: <span id="sc">0</span></div>
+</div>
 
-    <div id="game-wrap">
-        <canvas id="g"></canvas>
-    </div>
+<div id="riddle-box">
+    <h3 id="q">חידה?</h3>
+    <div id="ans"></div>
+</div>
+
+<canvas id="game"></canvas>
 
 <script>
-    const canvas = document.getElementById('g'), ctx = canvas.getContext('2d');
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
     canvas.width = 1000; canvas.height = 600;
 
-    let level = 1, score = 0, lastDir = 1, gameActive = true;
-    let ridd
+    let level = 1, score = 0, carrotsCollected = 0, gameRunning = true;
+    let player = { x: 50, y: 500, w: 35, h: 40, xv: 0, yv: 0, onWall: false, dir: 1 };
+    let plats = [], items = [], aliens = [], bullets = [];
+
+    const riddles = [
+        {q: "מה יש לו רגליים אבל לא הולך?", a: ["שולחן", "כלב", "ענן"], c: 0},
+        {q: "מה נרטב כשמייבשים?", a: ["מים", "מגבת", "שמש"], c: 1},
+        {q: "מה עולה ולא יורד?", a: ["בלון", "גשם", "הגיל שלך"], c: 2}
+    ];
+
+    function initLevel(n) {
+        carrotsCollected = 0;
+        bullets = [];
+        player.x = 50; player.y = 500;
+        
+        // פלטפורמות וקירות טיפוס
+        plats = [
+            {x: 0, y: 560, w: 1000, h: 40, wall: false}, // רצפה
+            {x: 300, y: 150, w: 30, h: 410, wall: true},  // קיר טי
