@@ -2,13 +2,13 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>אוזן המן החכמה - חידון פורים</title>
+    <title>אוזן המן והצופן המתמטי</title>
     <style>
         body {
             margin: 0;
-            background: radial-gradient(circle, #4c1d95, #1e1b4b);
+            background: radial-gradient(circle, #1e1b4b, #020617);
             color: white;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Segoe UI', system-ui, sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -17,193 +17,183 @@
             overflow: hidden;
         }
 
-        /* עיצוב אוזן המן ב-CSS */
+        /* אוזן המן משודרגת */
         .hamantash {
-            width: 0;
-            height: 0;
+            width: 0; height: 0;
             border-left: 100px solid transparent;
             border-right: 100px solid transparent;
-            border-bottom: 170px solid #d97706; /* צבע בצק */
+            border-bottom: 170px solid #d97706;
             position: relative;
-            cursor: pointer;
-            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            filter: drop-shadow(0 10px 20px rgba(0,0,0,0.5));
+            transition: 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
-        .hamantash:hover { transform: scale(1.1) rotate(5deg); }
-
-        /* המילוי */
         .filling {
             position: absolute;
-            top: 70px;
-            left: -30px;
-            width: 60px;
-            height: 60px;
-            background: #451a03; /* שוקולד/פרג */
+            top: 70px; left: -35px;
+            width: 70px; height: 70px;
+            background: #451a03;
             border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 24px;
+            box-shadow: inset 0 0 10px black;
         }
 
-        /* העיניים של הדמות */
-        .eye {
-            position: absolute;
-            width: 15px;
-            height: 15px;
-            background: white;
-            border-radius: 50%;
-            top: 100px;
-        }
-        .eye.left { left: -40px; }
-        .eye.right { left: 25px; }
-        .eye::after {
-            content: '';
-            position: absolute;
-            width: 7px;
-            height: 7px;
-            background: black;
-            border-radius: 50%;
-            top: 4px;
-            left: 4px;
+        #pattern-display {
+            margin-top: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 10px 20px;
+            border-radius: 50px;
+            border: 1px solid #f59e0b;
+            font-family: monospace;
+            font-size: 20px;
+            letter-spacing: 5px;
         }
 
         #ui-box {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            padding: 30px;
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(15px);
+            padding: 25px;
             border-radius: 20px;
             text-align: center;
-            max-width: 500px;
-            width: 90%;
-            margin-top: 40px;
-            border: 2px solid #f59e0b;
+            width: 90%; max-width: 450px;
+            margin-top: 30px;
+            border: 1px solid #334155;
         }
 
         input {
-            padding: 12px;
-            font-size: 18px;
-            border-radius: 10px;
-            border: none;
-            width: 80%;
-            margin: 15px 0;
-            text-align: center;
+            padding: 12px; border-radius: 8px; border: none;
+            width: 70%; margin: 10px 0; text-align: center; font-size: 18px;
         }
 
         button {
-            padding: 12px 25px;
-            font-size: 18px;
-            background: #f59e0b;
-            color: #451a03;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: 0.2s;
+            padding: 10px 20px; background: #f59e0b; color: #451a03;
+            border: none; border-radius: 8px; cursor: pointer; font-weight: bold;
         }
 
-        button:hover { background: #fbce77; }
-
-        #costume-result {
-            margin-top: 20px;
-            font-weight: bold;
-            color: #34d399;
-            font-size: 22px;
-            min-height: 50px;
+        .mode-badge {
+            background: #ef4444; padding: 5px 10px; border-radius: 5px;
+            font-size: 12px; margin-bottom: 10px; display: inline-block;
         }
-
-        .confetti { position: absolute; width: 10px; height: 10px; z-index: -1; }
     </style>
 </head>
 <body>
 
     <div class="hamantash" id="hero">
-        <div class="filling"></div>
-        <div class="eye left"></div>
-        <div class="eye right"></div>
+        <div class="filling" id="secret-number">?</div>
     </div>
 
+    <div id="pattern-display">הרצף שנחשף: <span id="seq-list">---</span></div>
+
     <div id="ui-box">
-        <h2 id="question-text">טוען שאלה...</h2>
-        <input type="text" id="answer-input" placeholder="הקלד תשובה כאן..." autocomplete="off">
+        <div id="game-mode" class="mode-badge">מצב: חידון פורים</div>
+        <h2 id="msg">טוען...</h2>
+        <input type="text" id="user-input" placeholder="תשובה..." autocomplete="off">
         <br>
-        <button onclick="checkAnswer()">בדוק תשובה!</button>
-        <div id="costume-result"></div>
+        <button onclick="handleAction()">שלח</button>
+        <div id="result" style="margin-top:15px; font-weight:bold; color:#fbbf24;"></div>
     </div>
 
 <script>
+    // שאלות פורים עם "ערך מספרי" לכל שאלה שיוצר דפוס
+    // שלב 1: דפוס של +5 (5, 10, 15)
+    // שלב 2: דפוס של כפול 2 (2, 4, 8)
     const questions = [
-        { q: "מי הייתה המלכה לפני אסתר?", a: "ושתי" },
-        { q: "באיזו עיר התרחשה עלילת המגילה?", a: "שושן" },
-        { q: "איך קוראים למתנות שנותנים לחברים בפורים?", a: "משלוח מנות" },
-        { q: "מי היה הדוד (או בן דוד) של אסתר?", a: "מרדכי" },
-        { q: "מה היה שמו של המלך בסיפור הפסטורלי הזה?", a: "אחשורוש" },
-        { q: "כמה בנים היו להמן הרשע?", a: "10" },
-        { q: "באיזה חודש חוגגים את פורים?", a: "אדר" }
+        { q: "מי המלכה שהחליפה את ושתי?", a: "אסתר", val: 5 },
+        { q: "באיזו עיר גר המלך?", a: "שושן", val: 10 },
+        { q: "מי היה הרשע שרצה להשמיד את היהודים?", a: "המן", val: 15 },
+        // פה יבוא אתגר דפוס 1
+        { q: "מה נותנים לעניים בפורים? (2 מילים)", a: "מתנות לאביונים", val: 2 },
+        { q: "איך קראו לסוס עליו רכב מרדכי? (סתם, מי רכב על הסוס?)", a: "מרדכי", val: 4 },
+        { q: "באיזה חודש חל פורים?", a: "אדר", val: 8 }
+        // פה יבוא אתגר דפוס 2
     ];
 
     const costumes = [
-        "**אסטרונאוט עם חישוק:** (שבתאי)",
-        "**אנשי קשר:** (להדביק אנשי צעצוע על הבגד)",
-        "**ענן גשם:** (מטרייה עם צמר גפן כחול)",
-        "**פופקורן אנושי:** (להדביק פופקורן על חולצה לבנה)",
-        "**תחפושת 'טעות 404':** (חולצה לבנה שכתוב עליה 'התחפושת לא נמצאה')",
-        "**קקטוס:** (סוודר ירוק עם אזיקונים לבנים בולטים)",
-        "**סושי אנושי:** (כרית לבנה על הגב עם בד כתום)"
+        "תחפושת 'מכונת מסטיקים': הדבק כדורי צמר צבעוניים על חולצה לבנה!",
+        "תחפושת 'שקית במבה': צייר על חולצה צהובה גדולה והוסף כובע תינוק.",
+        "תחפושת 'קקטוס': לבש ירוק והדבק אזיקונים לבנים מקופלים כקוצים."
     ];
 
-    let currentQ = 0;
+    let currentIdx = 0;
+    let sequence = [];
+    let isPatternMode = false;
 
-    function loadQuestion() {
-        if (currentQ >= questions.length) {
-            document.getElementById('question-text').innerText = "סיימת את כל השאלות! חג שמח!";
-            document.getElementById('answer-input').style.display = 'none';
-            return;
-        }
-        document.getElementById('question-text').innerText = questions[currentQ].q;
-        document.getElementById('answer-input').value = "";
-        document.getElementById('costume-result').innerText = "";
+    function init() {
+        showQuestion();
     }
 
-    function checkAnswer() {
-        const userAns = document.getElementById('answer-input').value.trim();
-        const correctAns = questions[currentQ].a;
+    function showQuestion() {
+        isPatternMode = false;
+        document.getElementById('game-mode').innerText = "מצב: חידון פורים";
+        document.getElementById('game-mode').style.background = "#3b82f6";
+        document.getElementById('msg').innerText = questions[currentIdx].q;
+        document.getElementById('user-input').value = "";
+        document.getElementById('secret-number').innerText = "?";
+    }
 
-        if (userAns === correctAns) {
-            const randomCostume = costumes[Math.floor(Math.random() * costumes.length)];
-            document.getElementById('costume-result').innerHTML = "נכון! רעיון לתחפושת: <br>" + randomCostume;
-            createConfetti();
-            currentQ++;
-            setTimeout(loadQuestion, 4000); // עובר שאלה אחרי 4 שניות
+    function showPatternChallenge() {
+        isPatternMode = true;
+        document.getElementById('game-mode').innerText = "מצב: פענוח דפוס!";
+        document.getElementById('game-mode').style.background = "#ef4444";
+        document.getElementById('msg').innerText = "גלה את הדפוס! מה המספר הבא ברצף?";
+        document.getElementById('user-input').value = "";
+        document.getElementById('user-input').placeholder = "הכנס מספר...";
+    }
+
+    function handleAction() {
+        const input = document.getElementById('user-input').value.trim();
+        const res = document.getElementById('result');
+
+        if (!isPatternMode) {
+            // בדיקת תשובה לחידון
+            if (input === questions[currentIdx].a) {
+                const val = questions[currentIdx].val;
+                sequence.push(val);
+                document.getElementById('secret-number').innerText = val;
+                document.getElementById('seq-list').innerText = sequence.join(', ');
+                res.innerText = "נכון! המספר הסודי נחשף.";
+                
+                currentIdx++;
+                
+                // האם הגענו לסוף רצף של 3 שאלות?
+                if (currentIdx % 3 === 0) {
+                    setTimeout(showPatternChallenge, 2000);
+                } else {
+                    setTimeout(showQuestion, 2000);
+                }
+            } else {
+                res.innerText = "טעות בחידון, נסה שוב!";
+            }
         } else {
-            document.getElementById('costume-result').innerText = "אופס, לא בדיוק. נסה שוב!";
-            document.getElementById('costume-result').style.color = "#f87171";
-            setTimeout(() => document.getElementById('costume-result').style.color = "#34d399", 1000);
+            // בדיקת דפוס מתמטי
+            let last = sequence[sequence.length - 1];
+            let prev = sequence[sequence.length - 2];
+            let expected;
+
+            // חישוב הלוגיקה לפי השלב
+            if (sequence[0] === 5) expected = last + 5; // דפוס חשבוני
+            if (sequence[0] === 2) expected = last * 2; // דפוס הנדסי
+
+            if (parseInt(input) === expected) {
+                const costume = costumes[Math.floor(Math.random()*costumes.length)];
+                res.innerHTML = "פיצחת את הדפוס! 🎉<br>רעיון לתחפושת: " + costume;
+                sequence = []; // איפוס לשלב הבא
+                document.getElementById('seq-list').innerText = "---";
+                if (currentIdx < questions.length) {
+                    setTimeout(showQuestion, 5000);
+                } else {
+                    document.getElementById('msg').innerText = "ניצחת את אוזן המן! חג שמח!";
+                }
+            } else {
+                res.innerText = "זה לא הדפוס... תסתכל על המספרים!";
+            }
         }
     }
 
-    function createConfetti() {
-        for (let i = 0; i < 50; i++) {
-            const c = document.createElement('div');
-            c.className = 'confetti';
-            c.style.left = Math.random() * 100 + "vw";
-            c.style.top = "-10px";
-            c.style.backgroundColor = `hsl(${Math.random() * 360}, 70%, 60%)`;
-            document.body.appendChild(c);
-
-            const animation = c.animate([
-                { transform: 'translateY(0) rotate(0)', opacity: 1 },
-                { transform: `translateY(100vh) rotate(${Math.random() * 360}deg)`, opacity: 0 }
-            ], { duration: 2000 + Math.random() * 3000 });
-
-            animation.onfinish = () => c.remove();
-        }
-    }
-
-    // הפעלת שאלה ראשונה
-    loadQuestion();
-
-    // תמיכה במקש Enter
-    document.getElementById('answer-input').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') checkAnswer();
-    });
+    init();
 </script>
 </body>
 </html>
