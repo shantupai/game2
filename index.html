@@ -2,198 +2,236 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>אוזן המן והצופן המתמטי</title>
+    <title>הנוטאים - לייזרים וקוצים</title>
     <style>
-        body {
-            margin: 0;
-            background: radial-gradient(circle, #1e1b4b, #020617);
-            color: white;
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            overflow: hidden;
-        }
-
-        /* אוזן המן משודרגת */
-        .hamantash {
-            width: 0; height: 0;
-            border-left: 100px solid transparent;
-            border-right: 100px solid transparent;
-            border-bottom: 170px solid #d97706;
-            position: relative;
-            transition: 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-
-        .filling {
-            position: absolute;
-            top: 70px; left: -35px;
-            width: 70px; height: 70px;
-            background: #451a03;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            font-size: 24px;
-            box-shadow: inset 0 0 10px black;
-        }
-
-        #pattern-display {
-            margin-top: 20px;
-            background: rgba(255, 255, 255, 0.05);
-            padding: 10px 20px;
-            border-radius: 50px;
-            border: 1px solid #f59e0b;
-            font-family: monospace;
-            font-size: 20px;
-            letter-spacing: 5px;
-        }
-
-        #ui-box {
-            background: rgba(15, 23, 42, 0.8);
-            backdrop-filter: blur(15px);
-            padding: 25px;
-            border-radius: 20px;
-            text-align: center;
-            width: 90%; max-width: 450px;
-            margin-top: 30px;
-            border: 1px solid #334155;
-        }
-
-        input {
-            padding: 12px; border-radius: 8px; border: none;
-            width: 70%; margin: 10px 0; text-align: center; font-size: 18px;
-        }
-
-        button {
-            padding: 10px 20px; background: #f59e0b; color: #451a03;
-            border: none; border-radius: 8px; cursor: pointer; font-weight: bold;
-        }
-
-        .mode-badge {
-            background: #ef4444; padding: 5px 10px; border-radius: 5px;
-            font-size: 12px; margin-bottom: 10px; display: inline-block;
-        }
+        body { margin: 0; background: #020617; overflow: hidden; font-family: sans-serif; }
+        canvas { display: block; margin: 0 auto; background: #020617; }
+        #stats { position: absolute; top: 10px; width: 100%; display: flex; justify-content: space-around; color: white; font-size: 20px; font-weight: bold; pointer-events: none; text-shadow: 2px 2px 4px #000; }
+        .hint { position: absolute; bottom: 10px; width: 100%; text-align: center; color: #94a3b8; font-size: 16px; }
     </style>
 </head>
 <body>
-
-    <div class="hamantash" id="hero">
-        <div class="filling" id="secret-number">?</div>
+    <div id="stats">
+        <div>🚀 שלב: <span id="lvl">1</span></div>
+        <div>❤️ חיים: <span id="hp">3</span></div>
+        <div>✨ כוכבים: <span id="sc">0</span></div>
     </div>
-
-    <div id="pattern-display">הרצף שנחשף: <span id="seq-list">---</span></div>
-
-    <div id="ui-box">
-        <div id="game-mode" class="mode-badge">מצב: חידון פורים</div>
-        <h2 id="msg">טוען...</h2>
-        <input type="text" id="user-input" placeholder="תשובה..." autocomplete="off">
-        <br>
-        <button onclick="handleAction()">שלח</button>
-        <div id="result" style="margin-top:15px; font-weight:bold; color:#fbbf24;"></div>
-    </div>
+    <div class="hint">חצים לזוז | רווח לקפיצה | **זהירות מהקוצים ומהלייזרים!**</div>
+    <canvas id="game"></canvas>
 
 <script>
-    // שאלות פורים עם "ערך מספרי" לכל שאלה שיוצר דפוס
-    // שלב 1: דפוס של +5 (5, 10, 15)
-    // שלב 2: דפוס של כפול 2 (2, 4, 8)
-    const questions = [
-        { q: "מי המלכה שהחליפה את ושתי?", a: "אסתר", val: 5 },
-        { q: "באיזו עיר גר המלך?", a: "שושן", val: 10 },
-        { q: "מי היה הרשע שרצה להשמיד את היהודים?", a: "המן", val: 15 },
-        // פה יבוא אתגר דפוס 1
-        { q: "מה נותנים לעניים בפורים? (2 מילים)", a: "מתנות לאביונים", val: 2 },
-        { q: "איך קראו לסוס עליו רכב מרדכי? (סתם, מי רכב על הסוס?)", a: "מרדכי", val: 4 },
-        { q: "באיזה חודש חל פורים?", a: "אדר", val: 8 }
-        // פה יבוא אתגר דפוס 2
-    ];
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 1100; canvas.height = 550;
 
-    const costumes = [
-        "תחפושת 'מכונת מסטיקים': הדבק כדורי צמר צבעוניים על חולצה לבנה!",
-        "תחפושת 'שקית במבה': צייר על חולצה צהובה גדולה והוסף כובע תינוק.",
-        "תחפושת 'קקטוס': לבש ירוק והדבק אזיקונים לבנים מקופלים כקוצים."
-    ];
+    let level = 1, score = 0, health = 3, frames = 0;
+    let player = { x: 50, y: 400, w: 25, h: 25, xv: 0, yv: 0, jumps: 0, invul: 0 };
+    let platforms = [], aliens = [], stars = [], particles = [], spikes = [], lasers = [], door = {};
+    let keys = {};
 
-    let currentIdx = 0;
-    let sequence = [];
-    let isPatternMode = false;
+    function setupLevel() {
+        platforms = []; aliens = []; stars = []; particles = []; spikes = []; lasers = [];
+        player.x = 50; player.y = 450; player.xv = 0; player.yv = 0;
+        
+        // רצפה בסיסית
+        platforms.push({ x: 0, y: 520, w: 1100, h: 30 });
 
-    function init() {
-        showQuestion();
-    }
+        // יצירת פלטפורמות
+        for(let i=0; i<20; i++) {
+            let px = 100 + Math.random() * 900;
+            let py = 100 + Math.random() * 350;
+            let pw = 70 + Math.random() * 60;
+            platforms.push({ x: px, y: py, w: pw, h: 12 });
 
-    function showQuestion() {
-        isPatternMode = false;
-        document.getElementById('game-mode').innerText = "מצב: חידון פורים";
-        document.getElementById('game-mode').style.background = "#3b82f6";
-        document.getElementById('msg').innerText = questions[currentIdx].q;
-        document.getElementById('user-input').value = "";
-        document.getElementById('secret-number').innerText = "?";
-    }
-
-    function showPatternChallenge() {
-        isPatternMode = true;
-        document.getElementById('game-mode').innerText = "מצב: פענוח דפוס!";
-        document.getElementById('game-mode').style.background = "#ef4444";
-        document.getElementById('msg').innerText = "גלה את הדפוס! מה המספר הבא ברצף?";
-        document.getElementById('user-input').value = "";
-        document.getElementById('user-input').placeholder = "הכנס מספר...";
-    }
-
-    function handleAction() {
-        const input = document.getElementById('user-input').value.trim();
-        const res = document.getElementById('result');
-
-        if (!isPatternMode) {
-            // בדיקת תשובה לחידון
-            if (input === questions[currentIdx].a) {
-                const val = questions[currentIdx].val;
-                sequence.push(val);
-                document.getElementById('secret-number').innerText = val;
-                document.getElementById('seq-list').innerText = sequence.join(', ');
-                res.innerText = "נכון! המספר הסודי נחשף.";
-                
-                currentIdx++;
-                
-                // האם הגענו לסוף רצף של 3 שאלות?
-                if (currentIdx % 3 === 0) {
-                    setTimeout(showPatternChallenge, 2000);
-                } else {
-                    setTimeout(showQuestion, 2000);
-                }
-            } else {
-                res.innerText = "טעות בחידון, נסה שוב!";
+            // הוספת קוצים רנדומליים על חלק מהפלטפורמות
+            if(Math.random() > 0.7) {
+                spikes.push({ x: px + 10, y: py - 10, w: pw - 20 });
             }
-        } else {
-            // בדיקת דפוס מתמטי
-            let last = sequence[sequence.length - 1];
-            let prev = sequence[sequence.length - 2];
-            let expected;
 
-            // חישוב הלוגיקה לפי השלב
-            if (sequence[0] === 5) expected = last + 5; // דפוס חשבוני
-            if (sequence[0] === 2) expected = last * 2; // דפוס הנדסי
-
-            if (parseInt(input) === expected) {
-                const costume = costumes[Math.floor(Math.random()*costumes.length)];
-                res.innerHTML = "פיצחת את הדפוס! 🎉<br>רעיון לתחפושת: " + costume;
-                sequence = []; // איפוס לשלב הבא
-                document.getElementById('seq-list').innerText = "---";
-                if (currentIdx < questions.length) {
-                    setTimeout(showQuestion, 5000);
-                } else {
-                    document.getElementById('msg').innerText = "ניצחת את אוזן המן! חג שמח!";
-                }
-            } else {
-                res.innerText = "זה לא הדפוס... תסתכל על המספרים!";
+            // הוספת לייזרים על חלק מהפלטפורמות
+            if(Math.random() > 0.8) {
+                lasers.push({ x: px + pw/2, y: py - 15, timer: Math.random() * 100 });
             }
+        }
+
+        // חייזרים
+        let alienCount = 5 + level; 
+        for(let i=0; i < alienCount; i++) {
+            aliens.push({
+                x: 200 + Math.random() * 850,
+                y: 50 + Math.random() * 400,
+                baseY: 0, floatSpeed: 0.03,
+                floatDist: 30, alive: true
+            });
+            aliens[i].baseY = aliens[i].y;
+        }
+
+        // כוכבים
+        for(let i=0; i<5; i++) {
+            stars.push({ x: 150 + Math.random()*850, y: 50 + Math.random()*400, collected: false });
+        }
+
+        let highPlat = platforms[Math.floor(Math.random() * platforms.length)];
+        door = { x: highPlat.x, y: highPlat.y - 60, w: 40, h: 60 };
+
+        document.getElementById('lvl').innerText = level;
+        document.getElementById('hp').innerText = health;
+    }
+
+    window.addEventListener('keydown', e => keys[e.code] = true);
+    window.addEventListener('keyup', e => keys[e.code] = false);
+
+    function takeDamage() {
+        if(player.invul > 0) return;
+        health--;
+        player.invul = 60;
+        player.yv = -8; // קפיצה קטנה כשנפגעים
+        createExplosion(player.x+12, player.y+12, "#ef4444");
+        if(health <= 0) {
+            alert("המשחק נגמר!");
+            level = 1; health = 3; score = 0; setupLevel();
         }
     }
 
-    init();
+    function createExplosion(x, y, color) {
+        for(let i=0; i<10; i++) {
+            particles.push({
+                x: x, y: y, 
+                xv: (Math.random()-0.5)*10, 
+                yv: (Math.random()-0.5)*10, 
+                life: 20, color: color
+            });
+        }
+    }
+
+    function update() {
+        frames++;
+        if(player.invul > 0) player.invul--;
+
+        player.xv = 0;
+        if(keys.ArrowRight) player.xv = 6;
+        if(keys.ArrowLeft) player.xv = -6;
+
+        if((keys.Space || keys.ArrowUp) && player.jumps < 2 && !player.jumpLock) {
+            player.yv = -11; player.jumps++; player.jumpLock = true;
+        }
+        if(!keys.Space && !keys.ArrowUp) player.jumpLock = false;
+
+        player.yv += 0.55;
+        player.x += player.xv; player.y += player.yv;
+
+        // התנגשות פלטפורמות
+        platforms.forEach(p => {
+            if(player.x < p.x+p.w && player.x+player.w > p.x && 
+               player.y+player.h > p.y && player.y+player.h < p.y+p.h+10 && player.yv >= 0) {
+                player.y = p.y - player.h; player.yv = 0; player.jumps = 0;
+            }
+        });
+
+        // בדיקת קוצים
+        spikes.forEach(s => {
+            if(player.x < s.x + s.w && player.x + player.w > s.x && 
+               player.y + player.h > s.y && player.y < s.y + 10) {
+                takeDamage();
+            }
+        });
+
+        // עדכון לייזרים
+        lasers.forEach(l => {
+            l.timer++;
+            let isFiring = (l.timer % 120 > 60); // יורה למשך 60 פריימים כל 120 פריימים
+            if(isFiring) {
+                // בדיקת פגיעה מהקרן (קרן ורטיקלית למעלה)
+                if(player.x < l.x + 5 && player.x + player.w > l.x - 5 && player.y < l.y) {
+                    takeDamage();
+                }
+            }
+        });
+
+        // איסוף כוכבים
+        stars.forEach(s => {
+            if(!s.collected && Math.abs(player.x - s.x) < 30 && Math.abs(player.y - s.y) < 30) {
+                s.collected = true; score += 50;
+                for(let a of aliens) { if(a.alive) { a.alive = false; createExplosion(a.x+15, a.y+15, "#f59e0b"); break; } }
+            }
+        });
+
+        // חייזרים
+        aliens.forEach(a => {
+            if(!a.alive) return;
+            a.y = a.baseY + Math.sin(frames * a.floatSpeed) * a.floatDist;
+            if(player.invul <= 0 && Math.abs(player.x - a.x) < 25 && Math.abs(player.y - a.y) < 25) takeDamage();
+        });
+
+        // יציאה
+        if(Math.abs(player.x - door.x) < 40 && Math.abs(player.y - door.y) < 50) {
+            level++; setupLevel();
+        }
+
+        if(player.y > 600) { health--; setupLevel(); }
+
+        particles.forEach((p, i) => {
+            p.x += p.xv; p.y += p.yv; p.life--;
+            if(p.life <= 0) particles.splice(i, 1);
+        });
+        
+        document.getElementById('sc').innerText = score;
+        document.getElementById('hp').innerText = health;
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // פלטפורמות
+        ctx.fillStyle = "#334155";
+        platforms.forEach(p => {
+            ctx.fillRect(p.x, p.y, p.w, p.h);
+            ctx.fillStyle = "#4ade80"; ctx.fillRect(p.x, p.y, p.w, 3); ctx.fillStyle = "#334155";
+        });
+
+        // קוצים
+        ctx.fillStyle = "#ef4444";
+        spikes.forEach(s => {
+            for(let i=0; i < s.w; i+=10) {
+                ctx.beginPath();
+                ctx.moveTo(s.x + i, s.y + 10);
+                ctx.lineTo(s.x + i + 5, s.y);
+                ctx.lineTo(s.x + i + 10, s.y + 10);
+                ctx.fill();
+            }
+        });
+
+        // לייזרים
+        lasers.forEach(l => {
+            ctx.fillStyle = "#94a3b8";
+            ctx.fillRect(l.x - 10, l.y, 20, 10); // בסיס הלייזר
+            ctx.fillStyle = "#f43f5e";
+            ctx.fillRect(l.x - 4, l.y - 5, 8, 5); // קנה
+
+            if(l.timer % 120 > 60) { // אפקט הירי
+                ctx.strokeStyle = "#f43f5e";
+                ctx.lineWidth = 3;
+                ctx.shadowBlur = 10; ctx.shadowColor = "red";
+                ctx.beginPath();
+                ctx.moveTo(l.x, l.y - 5);
+                ctx.lineTo(l.x, 0);
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+            }
+        });
+
+        // כוכבים, דלת, שחקן, חייזרים וחלקיקים (אותו קוד)
+        stars.forEach(s => { if(!s.collected) { ctx.fillStyle = "#fbbf24"; ctx.beginPath(); ctx.arc(s.x, s.y, 10, 0, Math.PI*2); ctx.fill(); }});
+        ctx.fillStyle = "#8b5cf6"; ctx.fillRect(door.x, door.y, door.w, door.h);
+        ctx.fillStyle = (player.invul > 0 && frames % 10 < 5) ? "transparent" : "#38bdf8";
+        ctx.fillRect(player.x, player.y, player.w, player.h);
+        aliens.forEach(a => { if(!a.alive) return; ctx.fillStyle = "#f43f5e"; ctx.beginPath(); ctx.ellipse(a.x+15, a.y+15, 15, 10, 0, 0, Math.PI*2); ctx.fill(); });
+        particles.forEach(p => { ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, 3, 3); });
+    }
+
+    function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
+    setupLevel();
+    gameLoop();
 </script>
 </body>
 </html>
