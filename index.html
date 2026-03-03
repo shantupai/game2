@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>הנוטאים - לייזרים וקוצים</title>
+    <title>הנוטאים - כוכב כחול וקפיצות קיר</title>
     <style>
         body { margin: 0; background: #020617; overflow: hidden; font-family: sans-serif; }
         canvas { display: block; margin: 0 auto; background: #020617; }
@@ -14,9 +14,10 @@
     <div id="stats">
         <div>🚀 שלב: <span id="lvl">1</span></div>
         <div>❤️ חיים: <span id="hp">3</span></div>
+        <div>⚡ כוח: <span id="pwr">רגיל</span></div>
         <div>✨ כוכבים: <span id="sc">0</span></div>
     </div>
-    <div class="hint">חצים לזוז | רווח לקפיצה | **זהירות מהקוצים ומהלייזרים!**</div>
+    <div class="hint">חצים לזוז | רווח לקפוץ | **קפוץ על קירות כדי לעלות!** | 🔵 כוכב כחול = חסינות</div>
     <canvas id="game"></canvas>
 
 <script>
@@ -25,54 +26,40 @@
     canvas.width = 1100; canvas.height = 550;
 
     let level = 1, score = 0, health = 3, frames = 0;
-    let player = { x: 50, y: 400, w: 25, h: 25, xv: 0, yv: 0, jumps: 0, invul: 0 };
-    let platforms = [], aliens = [], stars = [], particles = [], spikes = [], lasers = [], door = {};
+    let player = { x: 50, y: 400, w: 25, h: 25, xv: 0, yv: 0, jumps: 0, invul: 0, superTimer: 0 };
+    let platforms = [], walls = [], aliens = [], stars = [], blueStar = null, particles = [], spikes = [], lasers = [], door = {};
     let keys = {};
 
     function setupLevel() {
-        platforms = []; aliens = []; stars = []; particles = []; spikes = []; lasers = [];
-        player.x = 50; player.y = 450; player.xv = 0; player.yv = 0;
+        platforms = []; walls = []; aliens = []; stars = []; particles = []; spikes = []; lasers = [];
+        player.x = 50; player.y = 450; player.xv = 0; player.yv = 0; player.superTimer = 0;
         
-        // רצפה בסיסית
+        // רצפה
         platforms.push({ x: 0, y: 520, w: 1100, h: 30 });
 
-        // יצירת פלטפורמות
-        for(let i=0; i<20; i++) {
-            let px = 100 + Math.random() * 900;
+        // יצירת קירות (עמודים אנכיים)
+        for(let i=0; i<4; i++) {
+            walls.push({ x: 250 + i*220, y: 100 + Math.random()*150, w: 20, h: 250 });
+        }
+
+        // יצירת פלטפורמות (מדרגות)
+        for(let i=0; i<15; i++) {
+            let px = Math.random() * 1000;
             let py = 100 + Math.random() * 350;
-            let pw = 70 + Math.random() * 60;
-            platforms.push({ x: px, y: py, w: pw, h: 12 });
-
-            // הוספת קוצים רנדומליים על חלק מהפלטפורמות
-            if(Math.random() > 0.7) {
-                spikes.push({ x: px + 10, y: py - 10, w: pw - 20 });
-            }
-
-            // הוספת לייזרים על חלק מהפלטפורמות
-            if(Math.random() > 0.8) {
-                lasers.push({ x: px + pw/2, y: py - 15, timer: Math.random() * 100 });
-            }
+            platforms.push({ x: px, y: py, w: 80, h: 12 });
+            if(Math.random() > 0.6) spikes.push({ x: px + 10, y: py - 10, w: 60 });
+            if(Math.random() > 0.8) lasers.push({ x: px + 40, y: py - 15, timer: Math.random() * 100 });
         }
 
-        // חייזרים
-        let alienCount = 5 + level; 
-        for(let i=0; i < alienCount; i++) {
-            aliens.push({
-                x: 200 + Math.random() * 850,
-                y: 50 + Math.random() * 400,
-                baseY: 0, floatSpeed: 0.03,
-                floatDist: 30, alive: true
-            });
-            aliens[i].baseY = aliens[i].y;
-        }
+        // כוכבים צהובים
+        for(let i=0; i<5; i++) stars.push({ x: 100 + Math.random()*900, y: 50 + Math.random()*400, collected: false });
 
-        // כוכבים
-        for(let i=0; i<5; i++) {
-            stars.push({ x: 150 + Math.random()*850, y: 50 + Math.random()*400, collected: false });
-        }
+        // כוכב כחול (אחד לשלב)
+        blueStar = { x: 200 + Math.random()*700, y: 50 + Math.random()*300, collected: false };
 
-        let highPlat = platforms[Math.floor(Math.random() * platforms.length)];
-        door = { x: highPlat.x, y: highPlat.y - 60, w: 40, h: 60 };
+        // דלת (בצד ימין למעלה)
+        door = { x: 1000, y: 50, w: 40, h: 60 };
+        platforms.push({ x: 980, y: 110, w: 80, h: 12 }); // פלטפורמה לדלת
 
         document.getElementById('lvl').innerText = level;
         document.getElementById('hp').innerText = health;
@@ -82,38 +69,45 @@
     window.addEventListener('keyup', e => keys[e.code] = false);
 
     function takeDamage() {
-        if(player.invul > 0) return;
+        if(player.invul > 0 || player.superTimer > 0) return;
         health--;
         player.invul = 60;
-        player.yv = -8; // קפיצה קטנה כשנפגעים
-        createExplosion(player.x+12, player.y+12, "#ef4444");
-        if(health <= 0) {
-            alert("המשחק נגמר!");
-            level = 1; health = 3; score = 0; setupLevel();
-        }
+        createExplosion(player.x, player.y, "red");
+        if(health <= 0) { alert("אוי! נסה שוב"); level=1; health=3; score=0; setupLevel(); }
     }
 
     function createExplosion(x, y, color) {
-        for(let i=0; i<10; i++) {
-            particles.push({
-                x: x, y: y, 
-                xv: (Math.random()-0.5)*10, 
-                yv: (Math.random()-0.5)*10, 
-                life: 20, color: color
-            });
-        }
+        for(let i=0; i<10; i++) particles.push({ x, y, xv: (Math.random()-0.5)*10, yv: (Math.random()-0.5)*10, life: 20, color });
     }
 
     function update() {
         frames++;
         if(player.invul > 0) player.invul--;
+        if(player.superTimer > 0) player.superTimer--;
 
+        document.getElementById('pwr').innerText = player.superTimer > 0 ? "סופר חזק!" : "רגיל";
+        document.getElementById('pwr').style.color = player.superTimer > 0 ? "#38bdf8" : "white";
+
+        // תנועה
         player.xv = 0;
         if(keys.ArrowRight) player.xv = 6;
         if(keys.ArrowLeft) player.xv = -6;
 
-        if((keys.Space || keys.ArrowUp) && player.jumps < 2 && !player.jumpLock) {
-            player.yv = -11; player.jumps++; player.jumpLock = true;
+        // קפיצה וקפיצת קיר
+        if((keys.Space || keys.ArrowUp) && !player.jumpLock) {
+            let onWall = false;
+            walls.forEach(w => {
+                if(player.x + player.w + 5 > w.x && player.x - 5 < w.x + w.w && player.y < w.y + w.h && player.y + player.h > w.y) {
+                    onWall = true;
+                    player.xv = (player.x < w.x) ? -10 : 10; // קפיצה מהקיר הצידה
+                }
+            });
+
+            if(player.jumps < 2 || onWall) {
+                player.yv = -11;
+                player.jumps = onWall ? 1 : player.jumps + 1;
+                player.jumpLock = true;
+            }
         }
         if(!keys.Space && !keys.ArrowUp) player.jumpLock = false;
 
@@ -122,59 +116,51 @@
 
         // התנגשות פלטפורמות
         platforms.forEach(p => {
-            if(player.x < p.x+p.w && player.x+player.w > p.x && 
-               player.y+player.h > p.y && player.y+player.h < p.y+p.h+10 && player.yv >= 0) {
+            if(player.x < p.x+p.w && player.x+player.w > p.x && player.y+player.h > p.y && player.y+player.h < p.y+p.h+10 && player.yv >= 0) {
                 player.y = p.y - player.h; player.yv = 0; player.jumps = 0;
             }
         });
 
-        // בדיקת קוצים
-        spikes.forEach(s => {
-            if(player.x < s.x + s.w && player.x + player.w > s.x && 
-               player.y + player.h > s.y && player.y < s.y + 10) {
-                takeDamage();
+        // התנגשות קירות (חסימת מעבר)
+        walls.forEach(w => {
+            if(player.x < w.x+w.w && player.x+player.w > w.x && player.y < w.y+w.h && player.y+player.h > w.y) {
+                if(player.xv > 0) player.x = w.x - player.w;
+                if(player.xv < -0) player.x = w.x + w.w;
             }
         });
 
-        // עדכון לייזרים
-        lasers.forEach(l => {
-            l.timer++;
-            let isFiring = (l.timer % 120 > 60); // יורה למשך 60 פריימים כל 120 פריימים
-            if(isFiring) {
-                // בדיקת פגיעה מהקרן (קרן ורטיקלית למעלה)
-                if(player.x < l.x + 5 && player.x + player.w > l.x - 5 && player.y < l.y) {
-                    takeDamage();
-                }
-            }
-        });
-
-        // איסוף כוכבים
-        stars.forEach(s => {
-            if(!s.collected && Math.abs(player.x - s.x) < 30 && Math.abs(player.y - s.y) < 30) {
-                s.collected = true; score += 50;
-                for(let a of aliens) { if(a.alive) { a.alive = false; createExplosion(a.x+15, a.y+15, "#f59e0b"); break; } }
-            }
-        });
-
-        // חייזרים
-        aliens.forEach(a => {
-            if(!a.alive) return;
-            a.y = a.baseY + Math.sin(frames * a.floatSpeed) * a.floatDist;
-            if(player.invul <= 0 && Math.abs(player.x - a.x) < 25 && Math.abs(player.y - a.y) < 25) takeDamage();
-        });
-
-        // יציאה
-        if(Math.abs(player.x - door.x) < 40 && Math.abs(player.y - door.y) < 50) {
-            level++; setupLevel();
+        // בונוס כוכב כחול
+        if(!blueStar.collected && Math.abs(player.x - blueStar.x) < 30 && Math.abs(player.y - blueStar.y) < 30) {
+            blueStar.collected = true;
+            player.superTimer = 400; // בערך 6-7 שניות
+            score += 100;
         }
 
-        if(player.y > 600) { health--; setupLevel(); }
+        // קוצים ולייזרים
+        if(player.superTimer <= 0) {
+            spikes.forEach(s => { if(player.x < s.x+s.w && player.x+player.w > s.x && player.y+player.h > s.y && player.y < s.y+10) takeDamage(); });
+            lasers.forEach(l => {
+                l.timer++;
+                if(l.timer % 120 > 60 && player.x < l.x+5 && player.x+player.w > l.x-5 && player.y < l.y) takeDamage();
+            });
+        }
 
-        particles.forEach((p, i) => {
-            p.x += p.xv; p.y += p.yv; p.life--;
-            if(p.life <= 0) particles.splice(i, 1);
+        // חייזרים - אם אתה סופר, אתה הורג אותם!
+        aliens.forEach(a => {
+            if(!a.alive) return;
+            a.y = a.baseY + Math.sin(frames * 0.05) * 30;
+            if(Math.abs(player.x - a.x) < 30 && Math.abs(player.y - a.y) < 30) {
+                if(player.superTimer > 0) {
+                    a.alive = false; score += 100; createExplosion(a.x, a.y, "orange");
+                } else takeDamage();
+            }
         });
+
+        stars.forEach(s => { if(!s.collected && Math.abs(player.x-s.x)<30 && Math.abs(player.y-s.y)<30){ s.collected=true; score+=50; }});
+        if(Math.abs(player.x-door.x)<40 && Math.abs(player.y-door.y)<50){ level++; setupLevel(); }
+        if(player.y > 600) setupLevel();
         
+        particles.forEach((p, i) => { p.x+=p.xv; p.y+=p.yv; p.life--; if(p.life<=0) particles.splice(i,1); });
         document.getElementById('sc').innerText = score;
         document.getElementById('hp').innerText = health;
     }
@@ -182,50 +168,35 @@
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // פלטפורמות
-        ctx.fillStyle = "#334155";
-        platforms.forEach(p => {
-            ctx.fillRect(p.x, p.y, p.w, p.h);
-            ctx.fillStyle = "#4ade80"; ctx.fillRect(p.x, p.y, p.w, 3); ctx.fillStyle = "#334155";
-        });
+        // קירות ופלטפורמות
+        ctx.fillStyle = "#1e293b";
+        walls.forEach(w => ctx.fillRect(w.x, w.y, w.w, w.h));
+        platforms.forEach(p => { ctx.fillStyle = "#334155"; ctx.fillRect(p.x, p.y, p.w, p.h); ctx.fillStyle = "#4ade80"; ctx.fillRect(p.x, p.y, p.w, 3); });
 
-        // קוצים
+        // קוצים ולייזרים
         ctx.fillStyle = "#ef4444";
-        spikes.forEach(s => {
-            for(let i=0; i < s.w; i+=10) {
-                ctx.beginPath();
-                ctx.moveTo(s.x + i, s.y + 10);
-                ctx.lineTo(s.x + i + 5, s.y);
-                ctx.lineTo(s.x + i + 10, s.y + 10);
-                ctx.fill();
-            }
+        spikes.forEach(s => { for(let i=0; i<s.w; i+=10) { ctx.beginPath(); ctx.moveTo(s.x+i, s.y+10); ctx.lineTo(s.x+i+5, s.y); ctx.lineTo(s.x+i+10, s.y+10); ctx.fill(); }});
+        lasers.forEach(l => { 
+            ctx.fillStyle = "#94a3b8"; ctx.fillRect(l.x-10, l.y, 20, 10);
+            if(l.timer % 120 > 60) { ctx.strokeStyle = "red"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(l.x, l.y); ctx.lineTo(l.x, 0); ctx.stroke(); }
         });
 
-        // לייזרים
-        lasers.forEach(l => {
-            ctx.fillStyle = "#94a3b8";
-            ctx.fillRect(l.x - 10, l.y, 20, 10); // בסיס הלייזר
-            ctx.fillStyle = "#f43f5e";
-            ctx.fillRect(l.x - 4, l.y - 5, 8, 5); // קנה
+        // כוכבים
+        stars.forEach(s => { if(!s.collected) { ctx.fillStyle = "#fbbf24"; ctx.beginPath(); ctx.arc(s.x, s.y, 8, 0, Math.PI*2); ctx.fill(); }});
+        if(!blueStar.collected) { 
+            ctx.fillStyle = "#38bdf8"; ctx.shadowBlur = 15; ctx.shadowColor = "cyan";
+            ctx.beginPath(); ctx.arc(blueStar.x, blueStar.y, 12, 0, Math.PI*2); ctx.fill(); ctx.shadowBlur = 0;
+        }
 
-            if(l.timer % 120 > 60) { // אפקט הירי
-                ctx.strokeStyle = "#f43f5e";
-                ctx.lineWidth = 3;
-                ctx.shadowBlur = 10; ctx.shadowColor = "red";
-                ctx.beginPath();
-                ctx.moveTo(l.x, l.y - 5);
-                ctx.lineTo(l.x, 0);
-                ctx.stroke();
-                ctx.shadowBlur = 0;
-            }
-        });
-
-        // כוכבים, דלת, שחקן, חייזרים וחלקיקים (אותו קוד)
-        stars.forEach(s => { if(!s.collected) { ctx.fillStyle = "#fbbf24"; ctx.beginPath(); ctx.arc(s.x, s.y, 10, 0, Math.PI*2); ctx.fill(); }});
+        // דלת
         ctx.fillStyle = "#8b5cf6"; ctx.fillRect(door.x, door.y, door.w, door.h);
-        ctx.fillStyle = (player.invul > 0 && frames % 10 < 5) ? "transparent" : "#38bdf8";
-        ctx.fillRect(player.x, player.y, player.w, player.h);
-        aliens.forEach(a => { if(!a.alive) return; ctx.fillStyle = "#f43f5e"; ctx.beginPath(); ctx.ellipse(a.x+15, a.y+15, 15, 10, 0, 0, Math.PI*2); ctx.fill(); });
+
+        // שחקן
+        let pSize = player.superTimer > 0 ? 1.5 : 1;
+        ctx.fillStyle = player.superTimer > 0 ? (frames % 4 < 2 ? "#38bdf8" : "#fff") : (player.invul > 0 ? "#94a3b8" : "#38bdf8");
+        ctx.fillRect(player.x - (pSize*player.w - player.w)/2, player.y - (pSize*player.h - player.h), player.w * pSize, player.h * pSize);
+
+        aliens.forEach(a => { if(a.alive) { ctx.fillStyle = "#f43f5e"; ctx.beginPath(); ctx.ellipse(a.x+15, a.y+15, 15, 10, 0, 0, Math.PI*2); ctx.fill(); }});
         particles.forEach(p => { ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, 3, 3); });
     }
 
