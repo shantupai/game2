@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>הנוטאים - הגרסה היציבה!</title>
+    <title>הנוטאים - שיגור בטוח במיוחד!</title>
     <style>
         body { margin: 0; background: #000; overflow: hidden; font-family: sans-serif; }
         canvas { display: block; margin: 0 auto; background: #0b0f19; border: 2px solid #334; }
@@ -26,18 +26,17 @@
     let totalScore = 0, level = 1, frames = 0;
     let superTimer = 0, ghostTimer = 0, shield = false, doorActive = false;
     
-    // יצירת 3 שחקנים
     let players = [
-        { x: 100, y: 400, w: 25, h: 25, xv: 0, yv: 0, hp: 3, invul: 0, active: true, color: "#38bdf8", id: 1 },
-        { x: 150, y: 400, w: 25, h: 25, xv: 0, yv: 0, hp: 3, invul: 0, active: true, color: "#f87171", id: 2 },
-        { x: 200, y: 400, w: 25, h: 25, xv: 0, yv: 0, hp: 3, invul: 0, active: true, color: "#4ade80", id: 3 }
+        { x: 100, y: 450, w: 25, h: 25, xv: 0, yv: 0, hp: 3, invul: 0, active: true, color: "#38bdf8" },
+        { x: 150, y: 450, w: 25, h: 25, xv: 0, yv: 0, hp: 3, invul: 0, active: true, color: "#f87171" },
+        { x: 200, y: 450, w: 25, h: 25, xv: 0, yv: 0, hp: 3, invul: 0, active: true, color: "#4ade80" }
     ];
 
     let platforms = [], spikes = [], aliens = [], items = [];
 
     function setupLevel() {
         doorActive = false;
-        players.forEach((p, i) => { p.x = 100 + i*50; p.y = 450; p.xv = 0; p.yv = 0; });
+        players.forEach((p, i) => { p.x = 100 + i*50; p.y = 450; p.xv = 0; p.yv = 0; p.invul = 60; });
         
         platforms = [
             { x: 0, y: 520, w: 1100, h: 30 },
@@ -49,24 +48,49 @@
         spikes = [{ x: 420, y: 500, w: 40, h: 20 }, { x: 640, y: 500, w: 40, h: 20 }];
         
         aliens = [];
-        for(let i=0; i < 5 + level; i++) {
-            aliens.push({ x: 300+Math.random()*600, y: 100+Math.random()*300, dir: 1, speed: 1.5 + level*0.2, alive: true });
+        for(let i=0; i < 4 + level; i++) {
+            aliens.push({ x: 300+Math.random()*600, y: 100+Math.random()*300, dir: 1, speed: 1.3 + level*0.15, alive: true });
         }
 
+        spawnItems();
+        document.getElementById('lvl').innerText = level;
+    }
+
+    function spawnItems() {
         items = [];
         for(let i=0; i<8; i++) items.push({ x: 100+Math.random()*900, y: 100+Math.random()*350, type: 'yellow', active: true });
         ['blue', 'pink', 'purple', 'green'].forEach(t => items.push({ x: 100+Math.random()*900, y: 100+Math.random()*350, type: t, active: true }));
-        
-        document.getElementById('lvl').innerText = level;
+    }
+
+    // פונקציית שיגור למקום בטוח
+    function safeTeleport(p) {
+        let safe = false;
+        let attempts = 0;
+        while (!safe && attempts < 50) {
+            let targetX = 50 + Math.random() * 1000;
+            let targetY = 450; // תמיד על הרצפה
+            
+            // בדיקה שאין קוצים קרובים
+            let nearSpike = spikes.some(s => Math.abs(targetX - s.x) < 60);
+            // בדיקה שאין חייזרים קרובים
+            let nearAlien = aliens.some(a => a.alive && Math.abs(targetX - a.x) < 80 && Math.abs(targetY - a.y) < 80);
+            
+            if (!nearSpike && !nearAlien) {
+                p.x = targetX;
+                p.y = targetY;
+                p.invul = 60; // חסינות לשנייה
+                safe = true;
+            }
+            attempts++;
+        }
     }
 
     let keys = {};
     window.onkeydown = e => {
         keys[e.code] = true;
-        // שיגורים
-        if(e.code === 'ArrowDown' && players[0].active) { players[0].x = 100; players[0].y = 450; }
-        if(e.code === 'KeyS' && players[1].active) { players[1].x = 100; players[1].y = 450; }
-        if(e.code === 'KeyM' && players[2].active) { players[2].x = Math.random()*900; players[2].y = 100; }
+        if(e.code === 'ArrowDown' && players[0].active) safeTeleport(players[0]);
+        if(e.code === 'KeyS' && players[1].active) safeTeleport(players[1]);
+        if(e.code === 'KeyM' && players[2].active) safeTeleport(players[2]);
     };
     window.onkeyup = e => keys[e.code] = false;
 
@@ -85,12 +109,14 @@
 
         if(keys[u] && p.yv === 0) p.yv = (superTimer > 0) ? -14 : -11;
 
+        // בדיקת פגיעה - רק אם לא בחסינות
         if (p.invul <= 0 && ghostTimer <= 0) {
             spikes.forEach(s => { if(p.x < s.x+s.w && p.x+p.w > s.x && p.y+p.h > s.y) hurt(p); });
             aliens.forEach(a => { if(a.alive && Math.abs(p.x-a.x)<25 && Math.abs(p.y-a.y)<25) hurt(p); });
         }
         if(p.invul > 0) p.invul--;
 
+        // איסוף פריטים
         items.forEach(it => {
             if(it.active && Math.abs(p.x-it.x)<30 && Math.abs(p.y-it.y)<30) {
                 it.active = false;
@@ -128,7 +154,7 @@
         
         aliens.forEach(a => {
             if(!a.alive) return;
-            a.x += a.dir * a.speed; if(a.x > 1000 || a.x < 100) a.dir *= -1;
+            a.x += a.dir * a.speed; if(a.x > 1050 || a.x < 50) a.dir *= -1;
             ctx.fillStyle = "#a855f7"; ctx.beginPath(); ctx.arc(a.x, a.y, 12, 0, 7); ctx.fill();
         });
 
@@ -143,7 +169,8 @@
 
         players.forEach(p => {
             if(!p.active) return;
-            ctx.globalAlpha = ghostTimer > 0 ? 0.4 : (p.invul > 0 && frames % 10 < 5 ? 0.3 : 1);
+            // הבהוב כשנמצאים בחסינות/שיגור
+            ctx.globalAlpha = ghostTimer > 0 ? 0.4 : (p.invul > 0 && frames % 6 < 3 ? 0.3 : 1);
             ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, p.w, p.h);
             if(shield) { ctx.strokeStyle = "white"; ctx.strokeRect(p.x-3, p.y-3, p.w+6, p.h+6); }
             ctx.globalAlpha = 1;
