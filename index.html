@@ -2,14 +2,13 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>הנוטאים - הרפתקת השלבים!</title>
+    <title>הנוטאים - פצצת הכוכב!</title>
     <style>
         body { margin: 0; background: #020617; overflow: hidden; font-family: sans-serif; color: white; }
         canvas { display: block; margin: 0 auto; background: #0b0f19; border: 3px solid #334155; }
         #ui { position: absolute; top: 10px; width: 100%; display: flex; justify-content: space-around; font-size: 20px; font-weight: bold; pointer-events: none; text-shadow: 2px 2px 4px #000; }
         #power-status { position: absolute; bottom: 30px; width: 100%; text-align: center; font-size: 24px; font-weight: bold; }
         #restart-btn { position: absolute; top: 60%; left: 50%; transform: translate(-50%, -50%); padding: 20px 40px; font-size: 24px; background: #38bdf8; color: white; border: none; border-radius: 10px; cursor: pointer; display: none; font-weight: bold; }
-        #restart-btn:hover { background: #0ea5e9; }
     </style>
 </head>
 <body>
@@ -19,7 +18,7 @@
         <div style="color: #f87171;">שחקן 2: <span id="hp2">3</span> ❤️</div>
     </div>
     <div id="power-status"></div>
-    <button id="restart-btn" onclick="resetGame()">לחצו כאן כדי לשחק שוב 🎮</button>
+    <button id="restart-btn" onclick="resetGame()">שחק שוב 🎮</button>
     <canvas id="game"></canvas>
 
 <script>
@@ -27,9 +26,8 @@
     const restartBtn = document.getElementById('restart-btn');
     canvas.width = 1100; canvas.height = 550;
 
-    let totalScore = 0, level = 1, frames = 0;
-    let superTimer = 0, ghostTimer = 0, shieldActive = false;
-    let doorActive = false, gameRunning = true;
+    let totalScore = 0, level = 1, frames = 0, gameRunning = true;
+    let superTimer = 0, ghostTimer = 0, shieldActive = false, doorActive = false;
     
     let p1 = { x: 100, y: 450, w: 30, h: 30, xv: 0, yv: 0, jumps: 0, hp: 3, invul: 0, active: true, color: "#38bdf8" };
     let p2 = { x: 180, y: 450, w: 30, h: 30, xv: 0, yv: 0, jumps: 0, hp: 3, invul: 0, active: true, color: "#f87171" };
@@ -51,27 +49,35 @@
             { x: 850, y: 150, w: 150, h: 15 }
         ];
         walls = [{ x: 535, y: 100, w: 30, h: 150 }];
-        spikes = [
-            { x: 400, y: 500, w: 40, h: 20 },
-            { x: 650, y: 500, w: 40, h: 20 }
-        ];
+        spikes = [{ x: 400, y: 500, w: 40, h: 20 }, { x: 650, y: 500, w: 40, h: 20 }];
         
-        // החייזרים נהיים מהירים יותר בכל שלב
-        let speedMult = 1 + (level * 0.2);
-        aliens = [
-            { x: 300, y: 350, start: 200, end: 400, dir: 1, speed: 1.5 * speedMult },
-            { x: 750, y: 350, start: 700, end: 900, dir: -1, speed: 1.8 * speedMult },
-            { x: 500, y: 220, start: 100, end: 1000, dir: 1, speed: 1.2 * speedMult }
-        ];
+        // עכשיו יש 6 חייזרים!
+        aliens = [];
+        for(let i=0; i<6; i++) {
+            aliens.push({
+                x: 200 + Math.random()*700,
+                y: 100 + Math.random()*350,
+                start: 100, end: 1000,
+                dir: Math.random() > 0.5 ? 1 : -1,
+                speed: (1.2 + Math.random()) * (1 + level * 0.1),
+                alive: true
+            });
+        }
 
         items = [];
-        for(let i=0; i<6; i++) items.push({ x: 100+Math.random()*900, y: 100+Math.random()*350, type: 'yellow', active: true });
-        items.push({ x: 550, y: 80, type: 'blue', active: true });
-        items.push({ x: 150, y: 100, type: 'pink', active: true });
-        items.push({ x: 950, y: 100, type: 'purple', active: true });
+        for(let i=0; i<8; i++) items.push({ x: 100+Math.random()*900, y: 100+Math.random()*350, type: 'yellow', active: true });
+        items.push({ x: 550, y: 80, type: 'blue', active: true }); // מיוחד
+        items.push({ x: 150, y: 100, type: 'pink', active: true }); // מיוחד
+        items.push({ x: 950, y: 100, type: 'purple', active: true }); // מיוחד
         items.push({ x: 550, y: 480, type: 'green', active: true });
         
         document.getElementById('lvl').innerText = level;
+    }
+
+    function killAllAliens() {
+        aliens.forEach(a => a.alive = false);
+        ctx.fillStyle = "white"; // הבזק פיצוץ
+        ctx.fillRect(0,0,1100,550);
     }
 
     function resetGame() {
@@ -79,8 +85,7 @@
         p1.hp = 3; p1.active = true; p2.hp = 3; p2.active = true;
         superTimer = 0; ghostTimer = 0; shieldActive = false;
         restartBtn.style.display = "none";
-        setupLevel();
-        draw();
+        setupLevel(); draw();
     }
 
     let keys = {};
@@ -112,10 +117,10 @@
         }
         if(!keys[u]) p.lock = false;
 
-        // נזק
+        // נזק (רק מחייזרים חיים)
         if (p.invul <= 0 && ghostTimer <= 0) {
             spikes.forEach(sp => { if (p.x < sp.x+sp.w && p.x+p.w > sp.x && p.y+p.h > sp.y) damage(p); });
-            aliens.forEach(a => { if (Math.abs(p.x - a.x) < 25 && Math.abs(p.y - a.y) < 25) damage(p); });
+            aliens.forEach(a => { if (a.alive && Math.abs(p.x - a.x) < 25 && Math.abs(p.y - a.y) < 25) damage(p); });
         }
         if (p.invul > 0) p.invul--;
 
@@ -124,9 +129,10 @@
             if(it.active && Math.abs(p.x - it.x) < 30 && Math.abs(p.y - it.y) < 30) {
                 it.active = false;
                 if(it.type === 'yellow') totalScore += 10;
-                if(it.type === 'blue') superTimer = 400;
-                if(it.type === 'pink') ghostTimer = 400;
-                if(it.type === 'purple') shieldActive = true;
+                // כוכב מיוחד = פיצוץ חייזרים!
+                if(it.type === 'blue') { superTimer = 400; killAllAliens(); }
+                if(it.type === 'pink') { ghostTimer = 400; killAllAliens(); }
+                if(it.type === 'purple') { shieldActive = true; killAllAliens(); }
                 if(it.type === 'green') { 
                     p1.hp = Math.min(p1.hp + 1, 3); p2.hp = Math.min(p2.hp + 1, 3);
                     p1.active = true; p2.active = true;
@@ -134,7 +140,6 @@
             }
         });
 
-        // דלת לשלב הבא
         if (doorActive && Math.abs(p.x - door.x) < 40 && Math.abs(p.y - door.y) < 50) {
             level++; setupLevel();
         }
@@ -157,13 +162,14 @@
         move(p1, 'ArrowLeft', 'ArrowRight', 'ArrowUp');
         move(p2, 'KeyA', 'KeyD', 'KeyW');
 
-        // ציור עולם
+        // עולם
         ctx.fillStyle = "#1e293b"; platforms.forEach(plat => ctx.fillRect(plat.x, plat.y, plat.w, plat.h));
         ctx.fillStyle = "#334155"; walls.forEach(w => ctx.fillRect(w.x, w.y, w.w, w.h));
         ctx.fillStyle = "#ef4444"; spikes.forEach(s => { ctx.beginPath(); ctx.moveTo(s.x, s.y+s.h); ctx.lineTo(s.x+s.w/2, s.y); ctx.lineTo(s.x+s.w, s.y+s.h); ctx.fill(); });
 
-        // חייזרים
+        // חייזרים (רק מי שחי)
         aliens.forEach(a => {
+            if(!a.alive) return;
             a.x += a.dir * a.speed; if(a.x > a.end || a.x < a.start) a.dir *= -1;
             ctx.fillStyle = "#a855f7"; ctx.beginPath(); ctx.arc(a.x, a.y, 15, 0, 7); ctx.fill();
         });
@@ -176,10 +182,8 @@
             ctx.fillStyle = colors[it.type]; ctx.beginPath(); ctx.arc(it.x, it.y, 10, 0, 7); ctx.fill();
         });
 
-        // דלת
         if (doorActive) {
             ctx.fillStyle = "#8b5cf6"; ctx.fillRect(door.x, door.y, door.w, door.h);
-            ctx.fillStyle = "white"; ctx.font = "12px sans-serif"; ctx.fillText("הבאה", door.x+10, door.y-10);
         }
 
         // שחקנים
@@ -199,15 +203,11 @@
             gameRunning = false;
             ctx.fillStyle = "rgba(0,0,0,0.8)"; ctx.fillRect(0,0,1100,550);
             ctx.fillStyle = "white"; ctx.font = "40px sans-serif"; ctx.textAlign = "center";
-            ctx.fillText("הפסדתם! שלב: " + level, 550, 250);
-            restartBtn.style.display = "block";
+            ctx.fillText("הפסדתם!", 550, 250); restartBtn.style.display = "block";
         }
-
         requestAnimationFrame(draw);
     }
-
-    setupLevel();
-    draw();
+    setupLevel(); draw();
 </script>
 </body>
 </html>
