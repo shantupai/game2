@@ -2,184 +2,185 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>הנוטאים - שיתוף פעולה והישרדות</title>
+    <title>הנוטאים - צוות גיבורי העל!</title>
     <style>
         body { margin: 0; background: #020617; overflow: hidden; font-family: sans-serif; color: white; }
         canvas { display: block; margin: 0 auto; background: #0b0f19; border: 3px solid #334155; }
         #ui { position: absolute; top: 10px; width: 100%; display: flex; justify-content: space-around; font-size: 20px; font-weight: bold; pointer-events: none; text-shadow: 2px 2px 4px #000; }
         .p1-ui { color: #38bdf8; }
         .p2-ui { color: #f87171; }
+        #power-bar { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); font-size: 24px; font-weight: bold; transition: 0.3s; }
     </style>
 </head>
 <body>
     <div id="ui">
         <div class="p1-ui">שחקן 1: <span id="hp1">3</span> ❤️</div>
-        <div>✨ כוכבים: <span id="sc">0</span></div>
+        <div>✨ ניקוד צוות: <span id="sc">0</span></div>
         <div class="p2-ui">שחקן 2: <span id="hp2">3</span> ❤️</div>
     </div>
+    <div id="power-bar"></div>
     <canvas id="game"></canvas>
 
 <script>
     const canvas = document.getElementById('game'), ctx = canvas.getContext('2d');
     canvas.width = 1100; canvas.height = 550;
 
-    let totalScore = 0, frames = 0, globalSuperTimer = 0;
+    let totalScore = 0, frames = 0;
+    let superTimer = 0, ghostTimer = 0; // טיימרים משותפים
     
-    // הגדרת שחקנים עם חיים וזמן חסינות (invul)
     let p1 = { x: 100, y: 450, w: 30, h: 30, xv: 0, yv: 0, jumps: 0, hp: 3, invul: 0, active: true, color: "#38bdf8" };
     let p2 = { x: 200, y: 450, w: 30, h: 30, xv: 0, yv: 0, jumps: 0, hp: 3, invul: 0, active: true, color: "#f87171" };
 
     let platforms = [
         { x: 0, y: 520, w: 1100, h: 30 },
-        { x: 300, y: 380, w: 500, h: 15 },
-        { x: 100, y: 220, w: 200, h: 15 },
-        { x: 800, y: 220, w: 200, h: 15 }
+        { x: 250, y: 400, w: 200, h: 15 },
+        { x: 650, y: 400, w: 200, h: 15 },
+        { x: 450, y: 280, w: 200, h: 15 },
+        { x: 100, y: 180, w: 200, h: 15 },
+        { x: 800, y: 180, w: 200, h: 15 }
     ];
-    let walls = [{ x: 530, y: 120, w: 40, h: 260 }];
-    let hazards = [ // קוצים
-        { x: 400, y: 500, w: 40, h: 20 },
-        { x: 650, y: 500, w: 40, h: 20 }
+    let walls = [{ x: 530, y: 150, w: 40, h: 150 }];
+    let spikes = [
+        { x: 480, y: 500, w: 40, h: 20 },
+        { x: 580, y: 500, w: 40, h: 20 },
+        { x: 1000, y: 500, w: 40, h: 20 }
     ];
     let aliens = [
-        { x: 350, y: 330, startX: 350, endX: 750, dir: 1, speed: 3 }
+        { x: 300, y: 350, start: 250, end: 450, dir: 1, speed: 3 },
+        { x: 700, y: 350, start: 650, end: 850, dir: -1, speed: 4 },
+        { x: 500, y: 200, start: 100, end: 1000, dir: 1, speed: 2 },
+        { x: 200, y: 100, start: 50, end: 400, dir: 1, speed: 5 }
     ];
 
-    let stars = [];
-    function spawnStars() {
-        stars = [];
-        for(let i=0; i<6; i++) stars.push({ x: 100+Math.random()*900, y: 100+Math.random()*350, type: 'yellow', active: true });
-        stars.push({ x: 550, y: 70, type: 'blue', active: true });
+    let items = [];
+    function spawnItems() {
+        items = [];
+        // צהובים
+        for(let i=0; i<10; i++) items.push({ x: 50+Math.random()*1000, y: 50+Math.random()*400, type: 'yellow', active: true });
+        // מיוחדים
+        items.push({ x: 550, y: 240, type: 'blue', active: true }); // Super
+        items.push({ x: 150, y: 140, type: 'pink', active: true }); // Ghost
+        items.push({ x: 950, y: 140, type: 'green', active: true }); // Life
     }
 
     let keys = {};
     window.onkeydown = e => keys[e.code] = true;
     window.onkeyup = e => keys[e.code] = false;
 
-    function handlePlayer(p, left, right, up) {
+    function move(p, l, r, u) {
         if (!p.active) return;
+        let s = (superTimer > 0) ? 10 : 6;
+        if(keys[r]) p.xv = s; else if(keys[l]) p.xv = -s; else p.xv *= 0.8;
 
-        let speed = globalSuperTimer > 0 ? 10 : 6;
-        if(keys[right]) p.xv = speed;
-        else if(keys[left]) p.xv = -speed;
-        else p.xv *= 0.8;
-
-        let onWall = false;
+        let wall = false;
         walls.forEach(w => {
-            if(p.x + p.w + 5 > w.x && p.x - 5 < w.x + w.w && p.y + p.h > w.y && p.y < w.y + w.h) {
-                onWall = true; p.yv = 1.5;
-            }
+            if(p.x+p.w+5 > w.x && p.x-5 < w.x+w.w && p.y+p.h > w.y && p.y < w.y+w.h) { wall = true; p.yv = 1.5; }
         });
-
-        if(!onWall) p.yv += 0.6;
+        if(!wall) p.yv += 0.6;
         p.x += p.xv; p.y += p.yv;
 
-        // התנגשות פלטפורמות
         platforms.forEach(plat => {
             if(p.x < plat.x+plat.w && p.x+p.w > plat.x && p.y+p.h > plat.y && p.y+p.h < plat.y+plat.h+10 && p.yv >= 0) {
                 p.y = plat.y - p.h; p.yv = 0; p.jumps = 0;
             }
         });
 
-        if(keys[up] && !p.lock) {
-            if(p.yv === 0 || onWall || p.jumps < 2) {
-                p.yv = globalSuperTimer > 0 ? -15 : -12;
-                p.jumps++; p.lock = true;
+        if(keys[u] && !p.lock) {
+            if(p.yv === 0 || wall || p.jumps < 2) {
+                p.yv = (superTimer > 0) ? -15 : -12; p.jumps++; p.lock = true;
             }
         }
-        if(!keys[up]) p.lock = false;
+        if(!keys[u]) p.lock = false;
 
-        // נזק מקוצים וחייזרים
-        if (p.invul <= 0) {
-            hazards.forEach(h => {
-                if (p.x < h.x + h.w && p.x + p.w > h.x && p.y + p.h > h.y) {
-                    takeDamage(p);
-                }
+        // התנגשויות נזק
+        if (p.invul <= 0 && ghostTimer <= 0) {
+            spikes.forEach(sp => {
+                if (p.x < sp.x+sp.w && p.x+p.w > sp.x && p.y+p.h > sp.y) damage(p);
             });
             aliens.forEach(a => {
-                if (Math.abs(p.x - a.x) < 25 && Math.abs(p.y - a.y) < 25) {
-                    takeDamage(p);
-                }
+                if (Math.abs(p.x - a.x) < 25 && Math.abs(p.y - a.y) < 25) damage(p);
             });
         }
         if (p.invul > 0) p.invul--;
 
-        // איסוף כוכבים
-        stars.forEach(s => {
-            if(s.active && Math.abs(p.x - s.x) < 30 && Math.abs(p.y - s.y) < 30) {
-                s.active = false;
-                if(s.type === 'yellow') totalScore += 10;
-                else { globalSuperTimer = 300; totalScore += 50; }
+        // איסוף
+        items.forEach(it => {
+            if(it.active && Math.abs(p.x - it.x) < 30 && Math.abs(p.y - it.y) < 30) {
+                it.active = false;
+                if(it.type === 'yellow') totalScore += 10;
+                if(it.type === 'blue') { superTimer = 400; totalScore += 50; }
+                if(it.type === 'pink') { ghostTimer = 400; totalScore += 50; }
+                if(it.type === 'green') { 
+                    p1.hp = Math.min(p1.hp + 1, 3); p2.hp = Math.min(p2.hp + 1, 3);
+                    p1.active = true; p2.active = true; // החייאה!
+                }
             }
         });
-        
-        if (p.y > 600) { p.x = 100; p.y = 400; takeDamage(p); }
+        if (p.y > 600) { p.x = 100; p.y = 400; damage(p); }
     }
 
-    function takeDamage(p) {
-        p.hp--;
-        p.invul = 100;
+    function damage(p) {
+        p.hp--; p.invul = 100;
         if (p.hp <= 0) { p.active = false; p.hp = 0; }
     }
 
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         frames++;
-        if(globalSuperTimer > 0) globalSuperTimer--;
+        if(superTimer > 0) superTimer--;
+        if(ghostTimer > 0) ghostTimer--;
 
-        handlePlayer(p1, 'ArrowLeft', 'ArrowRight', 'ArrowUp');
-        handlePlayer(p2, 'KeyA', 'KeyD', 'KeyW');
+        move(p1, 'ArrowLeft', 'ArrowRight', 'ArrowUp');
+        move(p2, 'KeyA', 'KeyD', 'KeyW');
 
-        // ציור עולם
+        // עולם
         ctx.fillStyle = "#1e293b"; platforms.forEach(plat => ctx.fillRect(plat.x, plat.y, plat.w, plat.h));
         ctx.fillStyle = "#334155"; walls.forEach(w => ctx.fillRect(w.x, w.y, w.w, w.h));
         
         // קוצים
         ctx.fillStyle = "#ef4444";
-        hazards.forEach(h => {
-            ctx.beginPath(); ctx.moveTo(h.x, h.y+h.h); ctx.lineTo(h.x+h.w/2, h.y); ctx.lineTo(h.x+h.w, h.y+h.h); ctx.fill();
-        });
+        spikes.forEach(s => { ctx.beginPath(); ctx.moveTo(s.x, s.y+s.h); ctx.lineTo(s.x+s.w/2, s.y); ctx.lineTo(s.x+s.w, s.y+s.h); ctx.fill(); });
 
         // חייזרים
         aliens.forEach(a => {
-            a.x += a.dir * a.speed;
-            if (a.x > a.endX || a.x < a.startX) a.dir *= -1;
-            ctx.fillStyle = "#a855f7";
-            ctx.beginPath(); ctx.arc(a.x, a.y, 15, 0, 7); ctx.fill();
+            a.x += a.dir * a.speed; if(a.x > a.end || a.x < a.start) a.dir *= -1;
+            ctx.fillStyle = "#a855f7"; ctx.beginPath(); ctx.arc(a.x, a.y, 15, 0, 7); ctx.fill();
+            ctx.fillStyle = "white"; ctx.fillRect(a.x-5, a.y-5, 4, 4); ctx.fillRect(a.x+5, a.y-5, 4, 4); // עיניים
         });
 
-        // כוכבים
-        stars.forEach(s => {
-            if(s.active) {
-                ctx.fillStyle = s.type === 'blue' ? "#38bdf8" : "#fbbf24";
-                ctx.beginPath(); ctx.arc(s.x, s.y, 10, 0, 7); ctx.fill();
-            }
+        // פריטים
+        items.forEach(it => {
+            if(!it.active) return;
+            ctx.fillStyle = it.type === 'blue' ? "#38bdf8" : (it.type === 'pink' ? "#f472b6" : (it.type === 'green' ? "#4ade80" : "#fbbf24"));
+            ctx.shadowBlur = 10; ctx.shadowColor = ctx.fillStyle;
+            ctx.beginPath(); ctx.arc(it.x, it.y, 10, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
         });
 
-        // ציור שחקנים
+        // שחקנים
         [p1, p2].forEach(p => {
             if (!p.active) return;
-            if (p.invul > 0 && frames % 10 < 5) return; // הבהוב כשנפגע
+            ctx.globalAlpha = (ghostTimer > 0) ? 0.4 : (p.invul > 0 && frames % 10 < 5 ? 0.2 : 1);
             ctx.fillStyle = p.color;
-            if (globalSuperTimer > 0) { ctx.shadowBlur = 15; ctx.shadowColor = "white"; }
+            if(superTimer > 0) { ctx.shadowBlur = 20; ctx.shadowColor = "white"; }
             ctx.fillRect(p.x, p.y, p.w, p.h);
-            ctx.shadowBlur = 0;
+            ctx.globalAlpha = 1; ctx.shadowBlur = 0;
         });
 
         document.getElementById('sc').innerText = totalScore;
         document.getElementById('hp1').innerText = p1.hp;
         document.getElementById('hp2').innerText = p2.hp;
 
-        if(stars.every(s => !s.active)) spawnStars();
-        if(!p1.active && !p2.active) { // המשחק נגמר
-            ctx.fillStyle = "rgba(0,0,0,0.7)"; ctx.fillRect(0,0,1100,550);
-            ctx.fillStyle = "white"; ctx.font = "50px sans-serif"; ctx.fillText("המשחק נגמר!", 420, 280);
-        }
+        let bar = document.getElementById('power-bar');
+        if(superTimer > 0) { bar.innerText = "⚡ כוח סופר פעיל!"; bar.style.color = "cyan"; }
+        else if(ghostTimer > 0) { bar.innerText = "👻 מצב רוח רפאים!"; bar.style.color = "pink"; }
+        else { bar.innerText = ""; }
+
+        if(items.every(i => !i.active)) spawnItems();
+        if(!p1.active && !p2.active) { ctx.fillStyle = "white"; ctx.font = "40px sans-serif"; ctx.fillText("הפסדתם! לחצו F5 להתחלה", 350, 280); }
 
         requestAnimationFrame(draw);
     }
-
-    spawnStars();
-    draw();
+    spawnItems(); draw();
 </script>
 </body>
 </html>
