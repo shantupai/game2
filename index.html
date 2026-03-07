@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>הנוטאים - קפיצות על!</title>
+    <title>הנוטאים - קפיצת ירח!</title>
     <style>
         body { margin: 0; background: #000; overflow: hidden; font-family: sans-serif; }
         canvas { display: block; margin: 0 auto; background: #0b0f19; border: 2px solid #334; }
@@ -12,9 +12,9 @@
 </head>
 <body>
     <div id="ui">
-        <div style="color: #38bdf8;">שחקן 1 (חצים): <span id="hp1">3</span> ❤️</div>
-        <div style="color: #f87171;">שחקן 2 (WASD): <span id="hp2">3</span> ❤️</div>
-        <div style="color: #4ade80;">שחקן 3 (VBNM): <span id="hp3">3</span> ❤️</div>
+        <div style="color: #38bdf8;">שחקן 1: <span id="hp1">3</span> ❤️</div>
+        <div style="color: #f87171;">שחקן 2: <span id="hp2">3</span> ❤️</div>
+        <div style="color: #4ade80;">שחקן 3: <span id="hp3">3</span> ❤️</div>
         <div>🚀 שלב: <span id="lvl">1</span> | ✨ ניקוד: <span id="sc">0</span></div>
     </div>
     <canvas id="game"></canvas>
@@ -37,45 +37,29 @@
     function setupLevel() {
         doorActive = false;
         players.forEach((p, i) => { p.x = 100 + i*50; p.y = 450; p.xv = 0; p.yv = 0; p.jumps = 0; p.invul = 60; });
-        
         platforms = [
-            { x: 0, y: 520, w: 1100, h: 30 }, // רצפה
+            { x: 0, y: 520, w: 1100, h: 30 },
             { x: 200, y: 350, w: 200, h: 15 },
             { x: 700, y: 350, w: 200, h: 15 },
-            { x: 450, y: 180, w: 200, h: 15 } // פלטפורמה גבוהה
+            { x: 450, y: 200, w: 200, h: 15 }
         ];
-        
         spikes = [{ x: 420, y: 500, w: 40, h: 20 }, { x: 640, y: 500, w: 40, h: 20 }];
-        
         aliens = [];
         for(let i=0; i < 4 + level; i++) {
-            aliens.push({ x: 300+Math.random()*600, y: 100+Math.random()*300, dir: 1, speed: 1.2 + level*0.1, alive: true });
+            aliens.push({ x: 300+Math.random()*600, y: 100+Math.random()*300, dir: 1, speed: 1.2, alive: true });
         }
-
         spawnItems();
         document.getElementById('lvl').innerText = level;
     }
 
     function spawnItems() {
         items = [];
-        // כוכבים צהובים מפוזרים במקומות גבוהים ונמוכים
-        for(let i=0; i<10; i++) items.push({ x: 100+Math.random()*900, y: 80+Math.random()*350, type: 'yellow', active: true });
-        ['blue', 'pink', 'purple', 'green'].forEach(t => items.push({ x: 100+Math.random()*900, y: 80+Math.random()*300, type: t, active: true }));
+        for(let i=0; i<10; i++) items.push({ x: 100+Math.random()*900, y: 50+Math.random()*300, type: 'yellow', active: true });
+        ['blue', 'pink', 'purple', 'green'].forEach(t => items.push({ x: 100+Math.random()*900, y: 50+Math.random()*300, type: t, active: true }));
     }
 
     function safeTeleport(p) {
-        let attempts = 0;
-        while (attempts < 50) {
-            let targetX = 50 + Math.random() * 1000;
-            let targetY = 450;
-            let nearSpike = spikes.some(s => Math.abs(targetX - s.x) < 70);
-            let nearAlien = aliens.some(a => a.alive && Math.abs(targetX - a.x) < 90);
-            if (!nearSpike && !nearAlien) {
-                p.x = targetX; p.y = targetY; p.invul = 60;
-                break;
-            }
-            attempts++;
-        }
+        p.x = 100 + Math.random() * 800; p.y = 450; p.invul = 60; p.yv = 0;
     }
 
     let keys = {};
@@ -89,10 +73,10 @@
 
     function updatePlayer(p, l, r, u) {
         if (!p.active) return;
-        let speed = (superTimer > 0) ? 10 : 6;
-        if(keys[r]) p.xv = speed; else if(keys[l]) p.xv = -speed; else p.xv *= 0.8;
+        let speed = (superTimer > 0) ? 10 : 6.5;
+        if(keys[r]) p.xv = speed; else if(keys[l]) p.xv = -speed; else p.xv *= 0.85;
         
-        p.yv += 0.55; // כבידה קלה יותר
+        p.yv += 0.28; // כבידה נמוכה מאוד - לרחף!
         p.x += p.xv; p.y += p.yv;
 
         platforms.forEach(plat => {
@@ -101,10 +85,10 @@
             }
         });
 
-        // קפיצה גבוהה במיוחד! (ערך -16 במקום -11)
+        // קפיצת על
         if(keys[u] && !p.jumpLock) {
-            if(p.yv === 0 || p.jumps < 2) {
-                p.yv = (superTimer > 0) ? -18 : -16; 
+            if(p.yv >= -2 || p.jumps < 3) { // אפשרות לקפיצה משולשת
+                p.yv = -12; 
                 p.jumps++;
                 p.jumpLock = true;
             }
@@ -118,11 +102,11 @@
         if(p.invul > 0) p.invul--;
 
         items.forEach(it => {
-            if(it.active && Math.abs(p.x-it.x)<30 && Math.abs(p.y-it.y)<30) {
+            if(it.active && Math.abs(p.x-it.x)<35 && Math.abs(p.y-it.y)<35) {
                 it.active = false;
                 if(it.type === 'yellow') totalScore += 10;
                 else {
-                    if(it.type !== 'green') { aliens.forEach(a => a.alive = false); }
+                    if(it.type !== 'green') aliens.forEach(a => a.alive = false);
                     if(it.type === 'blue') superTimer = 400;
                     if(it.type === 'pink') ghostTimer = 400;
                     if(it.type === 'purple') shield = true;
@@ -162,7 +146,7 @@
         items.forEach(it => {
             if(!it.active) return;
             let colors = { blue: "#38bdf8", pink: "#f472b6", purple: "#a855f7", green: "#4ade80", yellow: "#fbbf24" };
-            ctx.fillStyle = colors[it.type]; ctx.beginPath(); ctx.arc(it.x, it.y, 8, 0, 7); ctx.fill();
+            ctx.fillStyle = colors[it.type]; ctx.beginPath(); ctx.arc(it.x, it.y, 10, 0, 7); ctx.fill();
         });
 
         if(doorActive) { ctx.fillStyle = "#8b5cf6"; ctx.fillRect(1020, 440, 50, 80); }
@@ -181,7 +165,6 @@
 
         requestAnimationFrame(draw);
     }
-
     setupLevel(); draw();
 </script>
 </body>
