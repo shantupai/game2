@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>הנוטאים - קפיצת ירח!</title>
+    <title>הנוטאים - מתקפת המנצ'יס!</title>
     <style>
         body { margin: 0; background: #000; overflow: hidden; font-family: sans-serif; }
         canvas { display: block; margin: 0 auto; background: #0b0f19; border: 2px solid #334; }
@@ -12,9 +12,9 @@
 </head>
 <body>
     <div id="ui">
-        <div style="color: #38bdf8;">שחקן 1: <span id="hp1">3</span> ❤️</div>
-        <div style="color: #f87171;">שחקן 2: <span id="hp2">3</span> ❤️</div>
-        <div style="color: #4ade80;">שחקן 3: <span id="hp3">3</span> ❤️</div>
+        <div style="color: #38bdf8;">🍟 צ'יפס (1): <span id="hp1">3</span> ❤️</div>
+        <div style="color: #f87171;">🍕 פיצה (2): <span id="hp2">3</span> ❤️</div>
+        <div style="color: #4ade80;">🍔 המבורגר (3): <span id="hp3">3</span> ❤️</div>
         <div>🚀 שלב: <span id="lvl">1</span> | ✨ ניקוד: <span id="sc">0</span></div>
     </div>
     <canvas id="game"></canvas>
@@ -26,10 +26,11 @@
     let totalScore = 0, level = 1, frames = 0;
     let superTimer = 0, ghostTimer = 0, shield = false, doorActive = false;
     
+    // הגדרת 3 שחקנים (האוכל)
     let players = [
-        { x: 100, y: 450, w: 25, h: 25, xv: 0, yv: 0, jumps: 0, hp: 3, invul: 0, active: true, color: "#38bdf8" },
-        { x: 150, y: 450, w: 25, h: 25, xv: 0, yv: 0, jumps: 0, hp: 3, invul: 0, active: true, color: "#f87171" },
-        { x: 200, y: 450, w: 25, h: 25, xv: 0, yv: 0, jumps: 0, hp: 3, invul: 0, active: true, color: "#4ade80" }
+        { x: 100, y: 450, w: 30, h: 30, xv: 0, yv: 0, jumps: 0, hp: 3, invul: 0, active: true, type: 'fries' },
+        { x: 150, y: 450, w: 30, h: 30, xv: 0, yv: 0, jumps: 0, hp: 3, invul: 0, active: true, type: 'pizza' },
+        { x: 200, y: 450, w: 30, h: 30, xv: 0, yv: 0, jumps: 0, hp: 3, invul: 0, active: true, type: 'burger' }
     ];
 
     let platforms = [], spikes = [], aliens = [], items = [];
@@ -44,8 +45,10 @@
             { x: 450, y: 200, w: 200, h: 15 }
         ];
         spikes = [{ x: 420, y: 500, w: 40, h: 20 }, { x: 640, y: 500, w: 40, h: 20 }];
+        
+        // יותר חייזרים כי עכשיו קשה יותר להרוג אותם
         aliens = [];
-        for(let i=0; i < 4 + level; i++) {
+        for(let i=0; i < 6 + level; i++) {
             aliens.push({ x: 300+Math.random()*600, y: 100+Math.random()*300, dir: 1, speed: 1.2, alive: true });
         }
         spawnItems();
@@ -58,8 +61,34 @@
         ['blue', 'pink', 'purple', 'green'].forEach(t => items.push({ x: 100+Math.random()*900, y: 50+Math.random()*300, type: t, active: true }));
     }
 
+    // פונקציית שיגור למקום בטוח
     function safeTeleport(p) {
-        p.x = 100 + Math.random() * 800; p.y = 450; p.invul = 60; p.yv = 0;
+        let attempts = 0;
+        while (attempts < 30) {
+            let targetX = 50 + Math.random() * 1000;
+            let targetY = 450;
+            let nearSpike = spikes.some(s => Math.abs(targetX - s.x) < 70);
+            let nearAlien = aliens.some(a => a.alive && Math.abs(targetX - a.x) < 90);
+            if (!nearSpike && !nearAlien) {
+                p.x = targetX; p.y = targetY; p.invul = 60; p.yv = 0;
+                break;
+            }
+            attempts++;
+        }
+    }
+
+    // פונקציית פיצוץ חייזרים חלקית (רק 3)
+    function killSomeAliens() {
+        let aliveAliens = aliens.filter(a => a.alive);
+        ctx.fillStyle = "rgba(255,255,255,0.5)"; // הבזק חלש
+        ctx.fillRect(0,0,1100,550);
+        
+        for (let i = 0; i < 3 && i < aliveAliens.length; i++) {
+            let randomIndex = Math.floor(Math.random() * aliveAliens.length);
+            aliveAliens[randomIndex].alive = false;
+            // הסרה מהמערך הזמני כדי לא לבחור אותו שוב
+            aliveAliens.splice(randomIndex, 1);
+        }
     }
 
     let keys = {};
@@ -71,12 +100,42 @@
     };
     window.onkeyup = e => keys[e.code] = false;
 
+    // פונקציית ציור דמויות (האוכל)
+    function drawPlayer(p) {
+        if (!p.active) return;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        
+        // הבהוב בחסינות
+        ctx.globalAlpha = ghostTimer > 0 ? 0.4 : (p.invul > 0 && frames % 6 < 3 ? 0.3 : 1);
+
+        if (p.type === 'fries') { // צ'יפס
+            ctx.fillStyle = "#fbbf24"; ctx.fillRect(0, 5, 25, 20); // קופסה
+            ctx.fillStyle = "#fef08a"; // צ'יפסים
+            ctx.fillRect(5, -5, 4, 15); ctx.fillRect(11, -8, 4, 18); ctx.fillRect(17, -4, 4, 14);
+        } else if (p.type === 'pizza') { // פיצה
+            ctx.fillStyle = "#facc15"; // בצק
+            ctx.beginPath(); ctx.moveTo(12.5, 0); ctx.lineTo(25, 25); ctx.lineTo(0, 25); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = "#ef4444"; // פפרוני
+            ctx.beginPath(); ctx.arc(7, 18, 3, 0, 7); ctx.arc(18, 18, 3, 0, 7); ctx.arc(12.5, 10, 3, 0, 7); ctx.fill();
+        } else if (p.type === 'burger') { // המבורגר
+            ctx.fillStyle = "#b45309"; ctx.fillRect(0, 8, 25, 12); // בשר
+            ctx.fillStyle = "#f59e0b"; // לחמנייה עליונה
+            ctx.beginPath(); ctx.arc(12.5, 10, 12.5, 3.14, 0); ctx.fill();
+            ctx.fillRect(0, 18, 25, 7); // לחמנייה תחתונה
+            ctx.fillStyle = "#16a34a"; ctx.fillRect(0, 6, 25, 3); // חסה
+        }
+        
+        if(shield) { ctx.strokeStyle = "white"; ctx.lineWidth = 2; ctx.strokeRect(-3, -10, p.w+6, p.h+15); }
+        ctx.restore();
+    }
+
     function updatePlayer(p, l, r, u) {
         if (!p.active) return;
         let speed = (superTimer > 0) ? 10 : 6.5;
         if(keys[r]) p.xv = speed; else if(keys[l]) p.xv = -speed; else p.xv *= 0.85;
         
-        p.yv += 0.28; // כבידה נמוכה מאוד - לרחף!
+        p.yv += 0.28; // כבידת ירח
         p.x += p.xv; p.y += p.yv;
 
         platforms.forEach(plat => {
@@ -85,9 +144,9 @@
             }
         });
 
-        // קפיצת על
+        // קפיצת ירח משולשת
         if(keys[u] && !p.jumpLock) {
-            if(p.yv >= -2 || p.jumps < 3) { // אפשרות לקפיצה משולשת
+            if(p.yv >= -2 || p.jumps < 3) {
                 p.yv = -12; 
                 p.jumps++;
                 p.jumpLock = true;
@@ -97,16 +156,17 @@
 
         if (p.invul <= 0 && ghostTimer <= 0) {
             spikes.forEach(s => { if(p.x < s.x+s.w && p.x+p.w > s.x && p.y+p.h > s.y) hurt(p); });
-            aliens.forEach(a => { if(a.alive && Math.abs(p.x-a.x)<25 && Math.abs(p.y-a.y)<25) hurt(p); });
+            aliens.forEach(a => { if(a.alive && Math.abs(p.x-a.x)<30 && Math.abs(p.y-a.y)<30) hurt(p); });
         }
         if(p.invul > 0) p.invul--;
 
+        // איסוף פריטים
         items.forEach(it => {
-            if(it.active && Math.abs(p.x-it.x)<35 && Math.abs(p.y-it.y)<35) {
+            if(it.active && Math.abs(p.x-it.x)<40 && Math.abs(p.y-it.y)<40) {
                 it.active = false;
                 if(it.type === 'yellow') totalScore += 10;
                 else {
-                    if(it.type !== 'green') aliens.forEach(a => a.alive = false);
+                    if(it.type !== 'green') { killSomeAliens(); } // פיצוץ חלקי!
                     if(it.type === 'blue') superTimer = 400;
                     if(it.type === 'pink') ghostTimer = 400;
                     if(it.type === 'purple') shield = true;
@@ -136,10 +196,12 @@
         ctx.fillStyle = "#1e293b"; platforms.forEach(plat => ctx.fillRect(plat.x, plat.y, plat.w, plat.h));
         ctx.fillStyle = "#ef4444"; spikes.forEach(s => ctx.fillRect(s.x, s.y, s.w, s.h));
         
+        // ציור חייזרים (הם נראים כמו מוחות קטנים עכשיו)
         aliens.forEach(a => {
             if(!a.alive) return;
             a.x += a.dir * a.speed; if(a.x > 1050 || a.x < 50) a.dir *= -1;
             ctx.fillStyle = "#a855f7"; ctx.beginPath(); ctx.arc(a.x, a.y, 12, 0, 7); ctx.fill();
+            ctx.fillStyle = "#d8b4fe"; ctx.beginPath(); ctx.arc(a.x-3, a.y-2, 4, 0, 7); ctx.fill();
         });
 
         if(items.every(i => !i.active)) doorActive = true;
@@ -151,12 +213,8 @@
 
         if(doorActive) { ctx.fillStyle = "#8b5cf6"; ctx.fillRect(1020, 440, 50, 80); }
 
-        players.forEach(p => {
-            if(!p.active) return;
-            ctx.globalAlpha = ghostTimer > 0 ? 0.4 : (p.invul > 0 && frames % 6 < 3 ? 0.3 : 1);
-            ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, p.w, p.h);
-            ctx.globalAlpha = 1;
-        });
+        // ציור דמויות האוכל
+        players.forEach(p => drawPlayer(p));
 
         document.getElementById('sc').innerText = totalScore;
         document.getElementById('hp1').innerText = players[0].hp;
