@@ -1,229 +1,825 @@
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
-    <meta charset="UTF-8">
-    <title>הנוטאים - מתקפת המנצ'יס!</title>
-    <style>
-        body { margin: 0; background: #000; overflow: hidden; font-family: sans-serif; }
-        canvas { display: block; margin: 0 auto; background: #0b0f19; border: 2px solid #334; }
-        #ui { position: absolute; top: 10px; width: 100%; display: flex; justify-content: space-around; 
-              color: white; font-size: 18px; font-weight: bold; pointer-events: none; }
-    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>אווטאר: הרפתקה מתמשכת</title>
+    <style>
+        body { 
+            margin: 0; 
+            background: #020617; 
+            color: white; 
+            font-family: 'Segoe UI', system-ui, sans-serif; 
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+        #ui-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; align-items: center; justify-content: center;
+            pointer-events: none;
+            z-index: 100;
+        }
+        .menu-card {
+            background: #1e293b;
+            padding: 30px;
+            border-radius: 24px;
+            text-align: center;
+            border: 3px solid #3b82f6;
+            pointer-events: auto;
+            width: 450px;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+        }
+        .upgrade-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .upgrade-btn {
+            background: #334155;
+            border: 2px solid #475569;
+            padding: 15px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: 0.2s;
+            color: white;
+        }
+        .upgrade-btn:hover { border-color: #f59e0b; background: #475569; }
+        
+        #game-container { position: relative; }
+        canvas { background: #0f172a; border: 4px solid #334155; border-radius: 10px; }
+        
+        #hud {
+            position: absolute;
+            top: 15px; left: 15px; right: 15px;
+            display: flex; justify-content: space-between;
+            pointer-events: none; font-size: 18px; font-weight: bold;
+            text-shadow: 2px 2px 4px black;
+        }
+        .stat-badge { background: rgba(0,0,0,0.5); padding: 5px 12px; border-radius: 20px; border: 1px solid #3b82f6; }
+        
+        button { padding: 12px 24px; background: #3b82f6; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 18px; width: 100%; }
+        button:hover { background: #2563eb; }
+    </style>
 </head>
 <body>
-    <div id="ui">
-        <div style="color: #38bdf8;">🍟 צ'יפס (1): <span id="hp1">3</span> ❤️</div>
-        <div style="color: #f87171;">🍕 פיצה (2): <span id="hp2">3</span> ❤️</div>
-        <div style="color: #4ade80;">🍔 המבורגר (3): <span id="hp3">3</span> ❤️</div>
-        <div>🚀 שלב: <span id="lvl">1</span> | ✨ ניקוד: <span id="sc">0</span></div>
-    </div>
-    <canvas id="game"></canvas>
+
+<div id="ui-layer">
+    <!-- מסך פתיחה -->
+    <div id="setup-screen" class="menu-card">
+        <h1>🌪️ אווטאר: כשפי האלמנטים 🌪️</h1>
+        <p>בחרו מספר שחקנים להתחלה:</p>
+        <select id="player-count" style="padding: 10px; width: 100%; border-radius: 8px; margin-bottom: 10px;">
+            <option value="1">שחקן 1</option>
+            <option value="2">2 שחקנים</option>
+            <option value="3">3 שחקנים</option>
+        </select>
+        <div id="initial-chars"></div>
+        <button onclick="startGame()">צאו למסע!</button>
+    </div>
+
+    <!-- מסך שדרוגים (מופיע בין שלבים) -->
+    <div id="market-screen" class="menu-card" style="display: none;">
+        <h2 style="color: #f59e0b;">✨ חנות האלמנטים - שלב הושלם! ✨</h2>
+        <p id="market-stats"></p>
+        <div class="upgrade-grid" id="upgrade-options">
+            <!-- שדרוגים ייווצרו כאן -->
+        </div>
+        <div style="margin-top: 20px; border-top: 1px solid #444; padding-top: 10px;">
+            <p>החלף דמות (עולה 2 כוכבים):</p>
+            <div id="char-swap-list" style="display: flex; gap: 5px; justify-content: center;"></div>
+        </div>
+        <button onclick="nextLevel()" style="margin-top: 20px; background: #10b981;">המשך לשלב הבא ➔</button>
+    </div>
+</div>
+
+<div id="game-container">
+    <div id="hud">
+        <div id="players-stats"></div>
+        <div style="display: flex; gap: 10px;">
+            <div class="stat-badge" id="level-counter">שלב: 1</div>
+            <div class="stat-badge" id="star-counter">⭐ כוכבים: 0 / 6</div>
+        </div>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+</div>
 
 <script>
-    const canvas = document.getElementById('game'), ctx = canvas.getContext('2d');
-    canvas.width = 1100; canvas.height = 550;
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 1000;
+    canvas.height = 600;
 
-    let totalScore = 0, level = 1, frames = 0;
-    let superTimer = 0, ghostTimer = 0, shield = false, doorActive = false;
-    
-    // הגדרת 3 שחקנים (האוכל)
-    let players = [
-        { x: 100, y: 450, w: 30, h: 30, xv: 0, yv: 0, jumps: 0, hp: 3, invul: 0, active: true, type: 'fries' },
-        { x: 150, y: 450, w: 30, h: 30, xv: 0, yv: 0, jumps: 0, hp: 3, invul: 0, active: true, type: 'pizza' },
-        { x: 200, y: 450, w: 30, h: 30, xv: 0, yv: 0, jumps: 0, hp: 3, invul: 0, active: true, type: 'burger' }
-    ];
+    const charTypes = {
+        aang: { name: 'אנג', icon: '🌪️', color: '#fef08a', shot: '⚪' },
+        toph: { name: 'טופ', icon: '⛰️', color: '#4ade80', shot: '🪨' },
+        zuko: { name: 'צוקו', icon: '🔥', color: '#fb7185', shot: '🔥' },
+        katara: { name: 'קטרה', icon: '🌊', color: '#60a5fa', shot: '💧' }
+    };
 
-    let platforms = [], spikes = [], aliens = [], items = [];
+    const enemyPool = [
+        { icon: '👹', shot: '🔥', color: '#ff4444', label: 'כשף אש' },
+        { icon: '👽', shot: '💧', color: '#4444ff', label: 'כשף מים' },
+        { icon: '🗿', shot: '🪨', color: '#8b4513', label: 'כשף אדמה' },
+        { icon: '👻', shot: '🌀', color: '#ffffff', label: 'כשף אוויר' }
+    ];
 
-    function setupLevel() {
-        doorActive = false;
-        players.forEach((p, i) => { p.x = 100 + i*50; p.y = 450; p.xv = 0; p.yv = 0; p.jumps = 0; p.invul = 60; });
-        platforms = [
-            { x: 0, y: 520, w: 1100, h: 30 },
-            { x: 200, y: 350, w: 200, h: 15 },
-            { x: 700, y: 350, w: 200, h: 15 },
-            { x: 450, y: 200, w: 200, h: 15 }
-        ];
-        spikes = [{ x: 420, y: 500, w: 40, h: 20 }, { x: 640, y: 500, w: 40, h: 20 }];
-        
-        // יותר חייזרים כי עכשיו קשה יותר להרוג אותם
-        aliens = [];
-        for(let i=0; i < 6 + level; i++) {
-            aliens.push({ x: 300+Math.random()*600, y: 100+Math.random()*300, dir: 1, speed: 1.2, alive: true });
-        }
-        spawnItems();
-        document.getElementById('lvl').innerText = level;
-    }
+    const controlSchemes = [
+        { up: 'ArrowUp', left: 'ArrowLeft', right: 'ArrowRight', down: 'ArrowDown' },
+        { up: 'KeyW', left: 'KeyA', right: 'KeyD', down: 'KeyS' },
+        { up: 'KeyI', left: 'KeyJ', right: 'KeyL', down: 'KeyM' }
+    ];
 
-    function spawnItems() {
-        items = [];
-        for(let i=0; i<10; i++) items.push({ x: 100+Math.random()*900, y: 50+Math.random()*300, type: 'yellow', active: true });
-        ['blue', 'pink', 'purple', 'green'].forEach(t => items.push({ x: 100+Math.random()*900, y: 50+Math.random()*300, type: t, active: true }));
-    }
+    let currentLevel = 1;
+    let totalStarsCollected = 0;
+    let players = [];
+    let enemies = [];
+    let enemyProjectiles = [];
+    let playerProjectiles = [];
+    let stars = [];
+    let platforms = [];
+    let portal = {x: 900, y: 40, w: 60, h: 80, active: false, pulse: 0};
+    let keys = {};
+    let isRunning = false;
 
-    // פונקציית שיגור למקום בטוח
-    function safeTeleport(p) {
-        let attempts = 0;
-        while (attempts < 30) {
-            let targetX = 50 + Math.random() * 1000;
-            let targetY = 450;
-            let nearSpike = spikes.some(s => Math.abs(targetX - s.x) < 70);
-            let nearAlien = aliens.some(a => a.alive && Math.abs(targetX - a.x) < 90);
-            if (!nearSpike && !nearAlien) {
-                p.x = targetX; p.y = targetY; p.invul = 60; p.yv = 0;
-                break;
-            }
-            attempts++;
-        }
-    }
+    // --- אתחול שחקנים בתחילת המשחק ---
+    function initInitialChars() {
+        const container = document.getElementById('initial-chars');
+        container.innerHTML = `<p>בחר דמויות ראשוניות:</p>`;
+        for(let i=0; i<3; i++) {
+            container.innerHTML += `<select id="init-p${i}" style="margin: 2px;">
+                ${Object.entries(charTypes).map(([k,v]) => `<option value="${k}">${v.icon} ${v.name}</option>`).join('')}
+            </select>`;
+        }
+    }
+    initInitialChars();
 
-    // פונקציית פיצוץ חייזרים חלקית (רק 3)
-    function killSomeAliens() {
-        let aliveAliens = aliens.filter(a => a.alive);
-        ctx.fillStyle = "rgba(255,255,255,0.5)"; // הבזק חלש
-        ctx.fillRect(0,0,1100,550);
-        
-        for (let i = 0; i < 3 && i < aliveAliens.length; i++) {
-            let randomIndex = Math.floor(Math.random() * aliveAliens.length);
-            aliveAliens[randomIndex].alive = false;
-            // הסרה מהמערך הזמני כדי לא לבחור אותו שוב
-            aliveAliens.splice(randomIndex, 1);
-        }
-    }
+    window.addEventListener('keydown', e => {
+        keys[e.code] = true;
+        if(isRunning) {
+            players.forEach(p => { if (e.code === controlSchemes[p.index].down) p.shoot(); });
+        }
+    });
+    window.addEventListener('keyup', e => keys[e.code] = false);
 
-    let keys = {};
-    window.onkeydown = e => {
-        keys[e.code] = true;
-        if(e.code === 'ArrowDown' && players[0].active) safeTeleport(players[0]);
-        if(e.code === 'KeyS' && players[1].active) safeTeleport(players[1]);
-        if(e.code === 'KeyM' && players[2].active) safeTeleport(players[2]);
-    };
-    window.onkeyup = e => keys[e.code] = false;
+    class Projectile {
+        constructor(x, y, vx, vy, icon, owner, homingPower = 0.12) {
+            this.x = x; this.y = y; this.vx = vx; this.vy = vy;
+            this.icon = icon; this.owner = owner;
+            this.homingPower = homingPower;
+            this.history = [];
+        }
+        update() {
+            if (this.owner === 'player') {
+                let closest = null;
+                let minDist = 500;
+                enemies.forEach(e => {
+                    if (e.alive) {
+                        let d = Math.hypot(e.x - this.x, e.y - this.y);
+                        if (d < minDist) { minDist = d; closest = e; }
+                    }
+                });
+                if (closest) {
+                    const targetAngle = Math.atan2((closest.y + 20) - this.y, (closest.x + 20) - this.x);
+                    const currentAngle = Math.atan2(this.vy, this.vx);
+                    let angleDiff = targetAngle - currentAngle;
+                    while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+                    while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+                    const newAngle = currentAngle + angleDiff * this.homingPower;
+                    const speed = Math.hypot(this.vx, this.vy);
+                    this.vx = Math.cos(newAngle) * speed;
+                    this.vy = Math.sin(newAngle) * speed;
+                }
+            }
+            this.x += this.vx; this.y += this.vy;
+            this.history.push({x: this.x, y: this.y});
+            if (this.history.length > 5) this.history.shift();
+        }
+        draw() {
+            this.history.forEach((pos, i) => {
+                ctx.globalAlpha = i / 10;
+                ctx.font = '14px Arial';
+                ctx.fillText(this.icon, pos.x, pos.y);
+            });
+            ctx.globalAlpha = 1;
+            ctx.font = '24px Arial';
+            ctx.fillText(this.icon, this.x, this.y);
+        }
+    }
 
-    // פונקציית ציור דמויות (האוכל)
-    function drawPlayer(p) {
-        if (!p.active) return;
-        ctx.save();
-        ctx.translate(p.x, p.y);
-        
-        // הבהוב בחסינות
-        ctx.globalAlpha = ghostTimer > 0 ? 0.4 : (p.invul > 0 && frames % 6 < 3 ? 0.3 : 1);
+    class Player {
+        constructor(index, type) {
+            this.index = index;
+            this.setChar(type);
+            this.x = 100; this.y = 500;
+            this.vx = 0; this.vy = 0;
+            this.hp = 3; this.maxHp = 3;
+            this.invul = 0;
+            this.dir = 1;
+            this.grounded = false;
+            // שדרוגים
+            this.speedBoost = 1;
+            this.jumpPower = 18;
+            this.homingStrength = 0.12;
+        }
+        setChar(type) {
+            this.typeKey = type;
+            this.data = charTypes[type];
+        }
+        update() {
+            if (this.invul > 0) this.invul--;
+            const ctrl = controlSchemes[this.index];
+            if (keys[ctrl.left]) { this.vx = -6 * this.speedBoost; this.dir = -1; }
+            else if (keys[ctrl.right]) { this.vx = 6 * this.speedBoost; this.dir = 1; }
+            else this.vx *= 0.8;
 
-        if (p.type === 'fries') { // צ'יפס
-            ctx.fillStyle = "#fbbf24"; ctx.fillRect(0, 5, 25, 20); // קופסה
-            ctx.fillStyle = "#fef08a"; // צ'יפסים
-            ctx.fillRect(5, -5, 4, 15); ctx.fillRect(11, -8, 4, 18); ctx.fillRect(17, -4, 4, 14);
-        } else if (p.type === 'pizza') { // פיצה
-            ctx.fillStyle = "#facc15"; // בצק
-            ctx.beginPath(); ctx.moveTo(12.5, 0); ctx.lineTo(25, 25); ctx.lineTo(0, 25); ctx.closePath(); ctx.fill();
-            ctx.fillStyle = "#ef4444"; // פפרוני
-            ctx.beginPath(); ctx.arc(7, 18, 3, 0, 7); ctx.arc(18, 18, 3, 0, 7); ctx.arc(12.5, 10, 3, 0, 7); ctx.fill();
-        } else if (p.type === 'burger') { // המבורגר
-            ctx.fillStyle = "#b45309"; ctx.fillRect(0, 8, 25, 12); // בשר
-            ctx.fillStyle = "#f59e0b"; // לחמנייה עליונה
-            ctx.beginPath(); ctx.arc(12.5, 10, 12.5, 3.14, 0); ctx.fill();
-            ctx.fillRect(0, 18, 25, 7); // לחמנייה תחתונה
-            ctx.fillStyle = "#16a34a"; ctx.fillRect(0, 6, 25, 3); // חסה
-        }
-        
-        if(shield) { ctx.strokeStyle = "white"; ctx.lineWidth = 2; ctx.strokeRect(-3, -10, p.w+6, p.h+15); }
-        ctx.restore();
-    }
+            if (keys[ctrl.up] && this.grounded) { this.vy = -this.jumpPower; this.grounded = false; }
+            this.vy += 0.8; this.x += this.vx; this.y += this.vy;
 
-    function updatePlayer(p, l, r, u) {
-        if (!p.active) return;
-        let speed = (superTimer > 0) ? 10 : 6.5;
-        if(keys[r]) p.xv = speed; else if(keys[l]) p.xv = -speed; else p.xv *= 0.85;
-        
-        p.yv += 0.28; // כבידת ירח
-        p.x += p.xv; p.y += p.yv;
+            if (this.x < 0) this.x = 0; if (this.x > canvas.width - 40) this.x = canvas.width - 40;
+            this.grounded = false;
+            platforms.forEach(p => {
+                if (this.x + 30 > p.x && this.x < p.x + p.w && this.y + 45 > p.y && this.y + 45 < p.y + p.h + this.vy) {
+                    if (this.vy >= 0) { this.vy = 0; this.y = p.y - 45; this.grounded = true; }
+                }
+            });
 
-        platforms.forEach(plat => {
-            if(p.x < plat.x+plat.w && p.x+p.w > plat.x && p.y+p.h > plat.y && p.y+p.h < plat.y+plat.h+10 && p.yv >= 0) {
-                p.y = plat.y - p.h; p.yv = 0; p.jumps = 0;
-            }
-        });
+            stars.forEach(s => {
+                if (s.active && Math.hypot(this.x + 20 - s.x, this.y + 20 - s.y) < 35) {
+                    s.active = false;
+                    totalStarsCollected++;
+                    updateHUD();
+                    if (stars.filter(st => st.active).length === 0) portal.active = true;
+                }
+            });
 
-        // קפיצת ירח משולשת
-        if(keys[u] && !p.jumpLock) {
-            if(p.yv >= -2 || p.jumps < 3) {
-                p.yv = -12; 
-                p.jumps++;
-                p.jumpLock = true;
-            }
-        }
-        if(!keys[u]) p.jumpLock = false;
+            if (portal.active && this.x + 40 > portal.x && this.x < portal.x + portal.w && this.y < portal.y + portal.h) {
+                openMarket();
+            }
+        }
+        shoot() {
+            playerProjectiles.push(new Projectile(this.x + 20, this.y + 20, this.dir * 8, 0, this.data.shot, 'player', this.homingStrength));
+        }
+        draw() {
+            if (this.invul % 10 > 5) return;
+            ctx.font = '45px Arial';
+            ctx.fillText(this.data.icon, this.x, this.y + 40);
+            ctx.fillStyle = 'red';
+            ctx.fillRect(this.x, this.y - 10, 40, 5);
+            ctx.fillStyle = '#4ade80';
+            ctx.fillRect(this.x, this.y - 10, (this.hp / this.maxHp) * 40, 5);
+        }
+    }
 
-        if (p.invul <= 0 && ghostTimer <= 0) {
-            spikes.forEach(s => { if(p.x < s.x+s.w && p.x+p.w > s.x && p.y+p.h > s.y) hurt(p); });
-            aliens.forEach(a => { if(a.alive && Math.abs(p.x-a.x)<30 && Math.abs(p.y-a.y)<30) hurt(p); });
-        }
-        if(p.invul > 0) p.invul--;
+    class Enemy {
+        constructor(x, y, level) {
+            this.x = x; this.y = y;
+            this.type = enemyPool[Math.floor(Math.random() * enemyPool.length)];
+            this.shootTimer = Math.random() * 50;
+            this.alive = true;
+            this.difficultyMult = 1 + (level * 0.1);
+        }
+        update() {
+            if (!this.alive) return;
+            this.shootTimer++;
+            if (this.shootTimer > 150 / this.difficultyMult) { this.shoot(); this.shootTimer = 0; }
+        }
+        shoot() {
+            if (players.length === 0) return;
+            let target = players[Math.floor(Math.random() * players.length)];
+            const angle = Math.atan2(target.y - this.y, target.x - this.x);
+            enemyProjectiles.push(new Projectile(this.x, this.y + 20, Math.cos(angle) * 3.5 * this.difficultyMult, Math.sin(angle) * 3.5 * this.difficultyMult, this.type.shot, 'enemy'));
+        }
+        draw() {
+            if (!this.alive) return;
+            ctx.font = '40px Arial';
+            ctx.fillText(this.type.icon, this.x, this.y + 35);
+        }
+    }
 
-        // איסוף פריטים
-        items.forEach(it => {
-            if(it.active && Math.abs(p.x-it.x)<40 && Math.abs(p.y-it.y)<40) {
-                it.active = false;
-                if(it.type === 'yellow') totalScore += 10;
-                else {
-                    if(it.type !== 'green') { killSomeAliens(); } // פיצוץ חלקי!
-                    if(it.type === 'blue') superTimer = 400;
-                    if(it.type === 'pink') ghostTimer = 400;
-                    if(it.type === 'purple') shield = true;
-                    if(it.type === 'green') players.forEach(pl => { pl.hp = 3; pl.active = true; });
-                }
-            }
-        });
+    function createLevel(lv) {
+        enemies = [];
+        stars = [];
+        playerProjectiles = [];
+        enemyProjectiles = [];
+        portal.active = false;
+        
+        // יצירת פלטפורמות אקראיות חלקית
+        platforms = [
+            {x: 0, y: 560, w: 1000, h: 40},
+            {x: 100, y: 440, w: 200, h: 15}, {x: 700, y: 440, w: 200, h: 15},
+            {x: 400, y: 340, w: 200, h: 15}, {x: 100, y: 240, w: 200, h: 15},
+            {x: 700, y: 240, w: 200, h: 15}, {x: 850, y: 120, w: 150, h: 15}
+        ];
 
-        if(doorActive && p.x > 1000 && p.y > 400) { level++; setupLevel(); }
-        if(p.y > 600) { p.x = 100; p.y = 450; hurt(p); }
-    }
+        for(let i=0; i<6; i++) {
+            stars.push({x: 100 + Math.random()*800, y: 100 + Math.random()*400, active: true});
+        }
+        
+        for(let i=0; i < 3 + lv; i++) {
+            enemies.push(new Enemy(200 + Math.random()*700, 100 + Math.random()*400, lv));
+        }
 
-    function hurt(p) {
-        if(shield) { shield = false; p.invul = 60; return; }
-        p.hp--; p.invul = 100; if(p.hp <= 0) p.active = false;
-    }
+        players.forEach(p => { p.x = 50; p.y = 500; });
+        updateHUD();
+    }
 
-    function draw() {
-        ctx.fillStyle = "#0b0f19"; ctx.fillRect(0,0,1100,550);
-        frames++;
-        if(superTimer > 0) superTimer--; if(ghostTimer > 0) ghostTimer--;
+    function openMarket() {
+        isRunning = false;
+        document.getElementById('market-screen').style.display = 'block';
+        document.getElementById('market-stats').innerText = `צברת עד כה ${totalStarsCollected} כוכבים!`;
+        
+        // יצירת שדרוגים
+        const upgrades = [
+            {name: "ריצה מהירה", effect: p => p.speedBoost += 0.2, desc: "מהירות תנועה +20%"},
+            {name: "קפיצת אוויר", effect: p => p.jumpPower += 2, desc: "קפיצה חזקה יותר"},
+            {name: "ביות משופר", effect: p => p.homingStrength += 0.05, desc: "ירי יותר מדויק"},
+            {name: "לב מלא", effect: p => p.hp = p.maxHp, desc: "ריפוי מלא לכל השחקנים"}
+        ];
+        
+        const optionsDiv = document.getElementById('upgrade-options');
+        optionsDiv.innerHTML = '';
+        upgrades.sort(() => 0.5 - Math.random()).slice(0, 3).forEach(up => {
+            const btn = document.createElement('button');
+            btn.className = 'upgrade-btn';
+            btn.innerHTML = `<b>${up.name}</b><br><small>${up.desc}</small>`;
+            btn.onclick = () => {
+                players.forEach(p => up.effect(p));
+                btn.style.borderColor = "#10b981";
+                optionsDiv.querySelectorAll('button').forEach(b => b.disabled = true);
+            };
+            optionsDiv.appendChild(btn);
+        });
 
-        updatePlayer(players[0], 'ArrowLeft', 'ArrowRight', 'ArrowUp');
-        updatePlayer(players[1], 'KeyA', 'KeyD', 'KeyW');
-        updatePlayer(players[2], 'KeyV', 'KeyN', 'KeyB');
+        // החלפת דמות
+        const swapList = document.getElementById('char-swap-list');
+        swapList.innerHTML = '';
+        Object.entries(charTypes).forEach(([key, data]) => {
+            const b = document.createElement('button');
+            b.style.width = '60px';
+            b.innerHTML = data.icon;
+            b.onclick = () => {
+                if (totalStarsCollected >= 2) {
+                    totalStarsCollected -= 2;
+                    players[0].setChar(key); // החלפה לשחקן הראשון כרגע
+                    updateHUD();
+                    b.style.background = 'gold';
+                }
+            };
+            swapList.appendChild(b);
+        });
+    }
 
-        ctx.fillStyle = "#1e293b"; platforms.forEach(plat => ctx.fillRect(plat.x, plat.y, plat.w, plat.h));
-        ctx.fillStyle = "#ef4444"; spikes.forEach(s => ctx.fillRect(s.x, s.y, s.w, s.h));
-        
-        // ציור חייזרים (הם נראים כמו מוחות קטנים עכשיו)
-        aliens.forEach(a => {
-            if(!a.alive) return;
-            a.x += a.dir * a.speed; if(a.x > 1050 || a.x < 50) a.dir *= -1;
-            ctx.fillStyle = "#a855f7"; ctx.beginPath(); ctx.arc(a.x, a.y, 12, 0, 7); ctx.fill();
-            ctx.fillStyle = "#d8b4fe"; ctx.beginPath(); ctx.arc(a.x-3, a.y-2, 4, 0, 7); ctx.fill();
-        });
+    function nextLevel() {
+        currentLevel++;
+        document.getElementById('market-screen').style.display = 'none';
+        createLevel(currentLevel);
+        isRunning = true;
+        gameLoop();
+    }
 
-        if(items.every(i => !i.active)) doorActive = true;
-        items.forEach(it => {
-            if(!it.active) return;
-            let colors = { blue: "#38bdf8", pink: "#f472b6", purple: "#a855f7", green: "#4ade80", yellow: "#fbbf24" };
-            ctx.fillStyle = colors[it.type]; ctx.beginPath(); ctx.arc(it.x, it.y, 10, 0, 7); ctx.fill();
-        });
+    function startGame() {
+        const count = document.getElementById('player-count').value;
+        players = [];
+        for (let i = 0; i < count; i++) {
+            const type = document.getElementById(`init-p${i}`).value;
+            players.push(new Player(i, type));
+        }
+        
+        document.getElementById('setup-screen').style.display = 'none';
+        createLevel(1);
+        isRunning = true;
+        gameLoop();
+    }
 
-        if(doorActive) { ctx.fillStyle = "#8b5cf6"; ctx.fillRect(1020, 440, 50, 80); }
+    function updateHUD() {
+        document.getElementById('players-stats').innerHTML = players.map(p => 
+            `<span class="stat-badge">${p.data.icon} HP: ${p.hp}</span>`).join(' ');
+        document.getElementById('star-counter').innerText = `⭐ כוכבים: ${totalStarsCollected}`;
+        document.getElementById('level-counter').innerText = `שלב: ${currentLevel}`;
+    }
 
-        // ציור דמויות האוכל
-        players.forEach(p => drawPlayer(p));
+    function gameLoop() {
+        if (!isRunning) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        document.getElementById('sc').innerText = totalScore;
-        document.getElementById('hp1').innerText = players[0].hp;
-        document.getElementById('hp2').innerText = players[1].hp;
-        document.getElementById('hp3').innerText = players[2].hp;
+        // פלטפורמות
+        ctx.fillStyle = '#1e293b';
+        platforms.forEach(p => { 
+            ctx.fillRect(p.x, p.y, p.w, p.h);
+            ctx.strokeStyle = '#3b82f6';
+            ctx.strokeRect(p.x, p.y, p.w, p.h);
+        });
+        
+        // פורטל
+        if (portal.active) {
+            portal.pulse += 0.05;
+            ctx.font = `${60 + Math.sin(portal.pulse) * 10}px Arial`;
+            ctx.fillText('🌀', portal.x, portal.y + 60);
+        }
 
-        requestAnimationFrame(draw);
-    }
-    setupLevel(); draw();
+        // כוכבים
+        stars.forEach(s => { if (s.active) { ctx.font = '30px Arial'; ctx.fillText('⭐', s.x, s.y); } });
+
+        // ירי שחקנים
+        for (let pi = playerProjectiles.length - 1; pi >= 0; pi--) {
+            const p = playerProjectiles[pi];
+            p.update(); p.draw();
+            let hit = false;
+            enemies.forEach(e => {
+                if (e.alive && Math.hypot(p.x - (e.x+20), p.y - (e.y+20)) < 35) {
+                    e.alive = false; hit = true;
+                }
+            });
+            if (hit || p.x < -100 || p.x > 1100 || p.y < -100 || p.y > 700) playerProjectiles.splice(pi, 1);
+        }
+
+        // ירי אויבים
+        for (let ei = enemyProjectiles.length - 1; ei >= 0; ei--) {
+            const p = enemyProjectiles[ei];
+            p.update(); p.draw();
+            let hit = false;
+            players.forEach(pl => {
+                if (pl.invul === 0 && Math.hypot(p.x - (pl.x+20), p.y - (pl.y+20)) < 25) {
+                    pl.hp--; pl.invul = 60; hit = true;
+                    updateHUD();
+                    if (pl.hp <= 0) { pl.hp = 0; } // מוות בשלב זה לא מסיים הכל אלא דורש ריפוי
+                }
+            });
+            if (hit || p.x < -50 || p.x > 1050) enemyProjectiles.splice(ei, 1);
+        }
+
+        enemies.forEach(e => { e.update(); e.draw(); });
+        players.forEach(p => { p.update(); p.draw(); });
+
+        requestAnimationFrame(gameLoop);
+    }
 </script>
 </body>
-</html>
+</html><!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>אווטאר: הרפתקה מתמשכת</title>
+    <style>
+        body { 
+            margin: 0; 
+            background: #020617; 
+            color: white; 
+            font-family: 'Segoe UI', system-ui, sans-serif; 
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+        #ui-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; align-items: center; justify-content: center;
+            pointer-events: none;
+            z-index: 100;
+        }
+        .menu-card {
+            background: #1e293b;
+            padding: 30px;
+            border-radius: 24px;
+            text-align: center;
+            border: 3px solid #3b82f6;
+            pointer-events: auto;
+            width: 450px;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+        }
+        .upgrade-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .upgrade-btn {
+            background: #334155;
+            border: 2px solid #475569;
+            padding: 15px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: 0.2s;
+            color: white;
+        }
+        .upgrade-btn:hover { border-color: #f59e0b; background: #475569; }
+        
+        #game-container { position: relative; }
+        canvas { background: #0f172a; border: 4px solid #334155; border-radius: 10px; }
+        
+        #hud {
+            position: absolute;
+            top: 15px; left: 15px; right: 15px;
+            display: flex; justify-content: space-between;
+            pointer-events: none; font-size: 18px; font-weight: bold;
+            text-shadow: 2px 2px 4px black;
+        }
+        .stat-badge { background: rgba(0,0,0,0.5); padding: 5px 12px; border-radius: 20px; border: 1px solid #3b82f6; }
+        
+        button { padding: 12px 24px; background: #3b82f6; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 18px; width: 100%; }
+        button:hover { background: #2563eb; }
+    </style>
+</head>
+<body>
+
+<div id="ui-layer">
+    <!-- מסך פתיחה -->
+    <div id="setup-screen" class="menu-card">
+        <h1>🌪️ אווטאר: כשפי האלמנטים 🌪️</h1>
+        <p>בחרו מספר שחקנים להתחלה:</p>
+        <select id="player-count" style="padding: 10px; width: 100%; border-radius: 8px; margin-bottom: 10px;">
+            <option value="1">שחקן 1</option>
+            <option value="2">2 שחקנים</option>
+            <option value="3">3 שחקנים</option>
+        </select>
+        <div id="initial-chars"></div>
+        <button onclick="startGame()">צאו למסע!</button>
+    </div>
+
+    <!-- מסך שדרוגים (מופיע בין שלבים) -->
+    <div id="market-screen" class="menu-card" style="display: none;">
+        <h2 style="color: #f59e0b;">✨ חנות האלמנטים - שלב הושלם! ✨</h2>
+        <p id="market-stats"></p>
+        <div class="upgrade-grid" id="upgrade-options">
+            <!-- שדרוגים ייווצרו כאן -->
+        </div>
+        <div style="margin-top: 20px; border-top: 1px solid #444; padding-top: 10px;">
+            <p>החלף דמות (עולה 2 כוכבים):</p>
+            <div id="char-swap-list" style="display: flex; gap: 5px; justify-content: center;"></div>
+        </div>
+        <button onclick="nextLevel()" style="margin-top: 20px; background: #10b981;">המשך לשלב הבא ➔</button>
+    </div>
+</div>
+
+<div id="game-container">
+    <div id="hud">
+        <div id="players-stats"></div>
+        <div style="display: flex; gap: 10px;">
+            <div class="stat-badge" id="level-counter">שלב: 1</div>
+            <div class="stat-badge" id="star-counter">⭐ כוכבים: 0 / 6</div>
+        </div>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 1000;
+    canvas.height = 600;
+
+    const charTypes = {
+        aang: { name: 'אנג', icon: '🌪️', color: '#fef08a', shot: '⚪' },
+        toph: { name: 'טופ', icon: '⛰️', color: '#4ade80', shot: '🪨' },
+        zuko: { name: 'צוקו', icon: '🔥', color: '#fb7185', shot: '🔥' },
+        katara: { name: 'קטרה', icon: '🌊', color: '#60a5fa', shot: '💧' }
+    };
+
+    const enemyPool = [
+        { icon: '👹', shot: '🔥', color: '#ff4444', label: 'כשף אש' },
+        { icon: '👽', shot: '💧', color: '#4444ff', label: 'כשף מים' },
+        { icon: '🗿', shot: '🪨', color: '#8b4513', label: 'כשף אדמה' },
+        { icon: '👻', shot: '🌀', color: '#ffffff', label: 'כשף אוויר' }
+    ];
+
+    const controlSchemes = [
+        { up: 'ArrowUp', left: 'ArrowLeft', right: 'ArrowRight', down: 'ArrowDown' },
+        { up: 'KeyW', left: 'KeyA', right: 'KeyD', down: 'KeyS' },
+        { up: 'KeyI', left: 'KeyJ', right: 'KeyL', down: 'KeyM' }
+    ];
+
+    let currentLevel = 1;
+    let totalStarsCollected = 0;
+    let players = [];
+    let enemies = [];
+    let enemyProjectiles = [];
+    let playerProjectiles = [];
+    let stars = [];
+    let platforms = [];
+    let portal = {x: 900, y: 40, w: 60, h: 80, active: false, pulse: 0};
+    let keys = {};
+    let isRunning = false;
+
+    // --- אתחול שחקנים בתחילת המשחק ---
+    function initInitialChars() {
+        const container = document.getElementById('initial-chars');
+        container.innerHTML = `<p>בחר דמויות ראשוניות:</p>`;
+        for(let i=0; i<3; i++) {
+            container.innerHTML += `<select id="init-p${i}" style="margin: 2px;">
+                ${Object.entries(charTypes).map(([k,v]) => `<option value="${k}">${v.icon} ${v.name}</option>`).join('')}
+            </select>`;
+        }
+    }
+    initInitialChars();
+
+    window.addEventListener('keydown', e => {
+        keys[e.code] = true;
+        if(isRunning) {
+            players.forEach(p => { if (e.code === controlSchemes[p.index].down) p.shoot(); });
+        }
+    });
+    window.addEventListener('keyup', e => keys[e.code] = false);
+
+    class Projectile {
+        constructor(x, y, vx, vy, icon, owner, homingPower = 0.12) {
+            this.x = x; this.y = y; this.vx = vx; this.vy = vy;
+            this.icon = icon; this.owner = owner;
+            this.homingPower = homingPower;
+            this.history = [];
+        }
+        update() {
+            if (this.owner === 'player') {
+                let closest = null;
+                let minDist = 500;
+                enemies.forEach(e => {
+                    if (e.alive) {
+                        let d = Math.hypot(e.x - this.x, e.y - this.y);
+                        if (d < minDist) { minDist = d; closest = e; }
+                    }
+                });
+                if (closest) {
+                    const targetAngle = Math.atan2((closest.y + 20) - this.y, (closest.x + 20) - this.x);
+                    const currentAngle = Math.atan2(this.vy, this.vx);
+                    let angleDiff = targetAngle - currentAngle;
+                    while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+                    while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+                    const newAngle = currentAngle + angleDiff * this.homingPower;
+                    const speed = Math.hypot(this.vx, this.vy);
+                    this.vx = Math.cos(newAngle) * speed;
+                    this.vy = Math.sin(newAngle) * speed;
+                }
+            }
+            this.x += this.vx; this.y += this.vy;
+            this.history.push({x: this.x, y: this.y});
+            if (this.history.length > 5) this.history.shift();
+        }
+        draw() {
+            this.history.forEach((pos, i) => {
+                ctx.globalAlpha = i / 10;
+                ctx.font = '14px Arial';
+                ctx.fillText(this.icon, pos.x, pos.y);
+            });
+            ctx.globalAlpha = 1;
+            ctx.font = '24px Arial';
+            ctx.fillText(this.icon, this.x, this.y);
+        }
+    }
+
+    class Player {
+        constructor(index, type) {
+            this.index = index;
+            this.setChar(type);
+            this.x = 100; this.y = 500;
+            this.vx = 0; this.vy = 0;
+            this.hp = 3; this.maxHp = 3;
+            this.invul = 0;
+            this.dir = 1;
+            this.grounded = false;
+            // שדרוגים
+            this.speedBoost = 1;
+            this.jumpPower = 18;
+            this.homingStrength = 0.12;
+        }
+        setChar(type) {
+            this.typeKey = type;
+            this.data = charTypes[type];
+        }
+        update() {
+            if (this.invul > 0) this.invul--;
+            const ctrl = controlSchemes[this.index];
+            if (keys[ctrl.left]) { this.vx = -6 * this.speedBoost; this.dir = -1; }
+            else if (keys[ctrl.right]) { this.vx = 6 * this.speedBoost; this.dir = 1; }
+            else this.vx *= 0.8;
+
+            if (keys[ctrl.up] && this.grounded) { this.vy = -this.jumpPower; this.grounded = false; }
+            this.vy += 0.8; this.x += this.vx; this.y += this.vy;
+
+            if (this.x < 0) this.x = 0; if (this.x > canvas.width - 40) this.x = canvas.width - 40;
+            this.grounded = false;
+            platforms.forEach(p => {
+                if (this.x + 30 > p.x && this.x < p.x + p.w && this.y + 45 > p.y && this.y + 45 < p.y + p.h + this.vy) {
+                    if (this.vy >= 0) { this.vy = 0; this.y = p.y - 45; this.grounded = true; }
+                }
+            });
+
+            stars.forEach(s => {
+                if (s.active && Math.hypot(this.x + 20 - s.x, this.y + 20 - s.y) < 35) {
+                    s.active = false;
+                    totalStarsCollected++;
+                    updateHUD();
+                    if (stars.filter(st => st.active).length === 0) portal.active = true;
+                }
+            });
+
+            if (portal.active && this.x + 40 > portal.x && this.x < portal.x + portal.w && this.y < portal.y + portal.h) {
+                openMarket();
+            }
+        }
+        shoot() {
+            playerProjectiles.push(new Projectile(this.x + 20, this.y + 20, this.dir * 8, 0, this.data.shot, 'player', this.homingStrength));
+        }
+        draw() {
+            if (this.invul % 10 > 5) return;
+            ctx.font = '45px Arial';
+            ctx.fillText(this.data.icon, this.x, this.y + 40);
+            ctx.fillStyle = 'red';
+            ctx.fillRect(this.x, this.y - 10, 40, 5);
+            ctx.fillStyle = '#4ade80';
+            ctx.fillRect(this.x, this.y - 10, (this.hp / this.maxHp) * 40, 5);
+        }
+    }
+
+    class Enemy {
+        constructor(x, y, level) {
+            this.x = x; this.y = y;
+            this.type = enemyPool[Math.floor(Math.random() * enemyPool.length)];
+            this.shootTimer = Math.random() * 50;
+            this.alive = true;
+            this.difficultyMult = 1 + (level * 0.1);
+        }
+        update() {
+            if (!this.alive) return;
+            this.shootTimer++;
+            if (this.shootTimer > 150 / this.difficultyMult) { this.shoot(); this.shootTimer = 0; }
+        }
+        shoot() {
+            if (players.length === 0) return;
+            let target = players[Math.floor(Math.random() * players.length)];
+            const angle = Math.atan2(target.y - this.y, target.x - this.x);
+            enemyProjectiles.push(new Projectile(this.x, this.y + 20, Math.cos(angle) * 3.5 * this.difficultyMult, Math.sin(angle) * 3.5 * this.difficultyMult, this.type.shot, 'enemy'));
+        }
+        draw() {
+            if (!this.alive) return;
+            ctx.font = '40px Arial';
+            ctx.fillText(this.type.icon, this.x, this.y + 35);
+        }
+    }
+
+    function createLevel(lv) {
+        enemies = [];
+        stars = [];
+        playerProjectiles = [];
+        enemyProjectiles = [];
+        portal.active = false;
+        
+        // יצירת פלטפורמות אקראיות חלקית
+        platforms = [
+            {x: 0, y: 560, w: 1000, h: 40},
+            {x: 100, y: 440, w: 200, h: 15}, {x: 700, y: 440, w: 200, h: 15},
+            {x: 400, y: 340, w: 200, h: 15}, {x: 100, y: 240, w: 200, h: 15},
+            {x: 700, y: 240, w: 200, h: 15}, {x: 850, y: 120, w: 150, h: 15}
+        ];
+
+        for(let i=0; i<6; i++) {
+            stars.push({x: 100 + Math.random()*800, y: 100 + Math.random()*400, active: true});
+        }
+        
+        for(let i=0; i < 3 + lv; i++) {
+            enemies.push(new Enemy(200 + Math.random()*700, 100 + Math.random()*400, lv));
+        }
+
+        players.forEach(p => { p.x = 50; p.y = 500; });
+        updateHUD();
+    }
+
+    function openMarket() {
+        isRunning = false;
+        document.getElementById('market-screen').style.display = 'block';
+        document.getElementById('market-stats').innerText = `צברת עד כה ${totalStarsCollected} כוכבים!`;
+        
+        // יצירת שדרוגים
+        const upgrades = [
+            {name: "ריצה מהירה", effect: p => p.speedBoost += 0.2, desc: "מהירות תנועה +20%"},
+            {name: "קפיצת אוויר", effect: p => p.jumpPower += 2, desc: "קפיצה חזקה יותר"},
+            {name: "ביות משופר", effect: p => p.homingStrength += 0.05, desc: "ירי יותר מדויק"},
+            {name: "לב מלא", effect: p => p.hp = p.maxHp, desc: "ריפוי מלא לכל השחקנים"}
+        ];
+        
+        const optionsDiv = document.getElementById('upgrade-options');
+        optionsDiv.innerHTML = '';
+        upgrades.sort(() => 0.5 - Math.random()).slice(0, 3).forEach(up => {
+            const btn = document.createElement('button');
+            btn.className = 'upgrade-btn';
+            btn.innerHTML = `<b>${up.name}</b><br><small>${up.desc}</small>`;
+            btn.onclick = () => {
+                players.forEach(p => up.effect(p));
+                btn.style.borderColor = "#10b981";
+                optionsDiv.querySelectorAll('button').forEach(b => b.disabled = true);
+            };
+            optionsDiv.appendChild(btn);
+        });
+
+        // החלפת דמות
+        const swapList = document.getElementById('char-swap-list');
+        swapList.innerHTML = '';
+        Object.entrie
